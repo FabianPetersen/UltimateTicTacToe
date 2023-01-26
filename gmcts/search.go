@@ -51,6 +51,7 @@ func (n *node) runSimulation() ([]Player, float64) {
 		//Get the result of the game
 		winners = n.simulate()
 		scoreToAdd = 1.0 / float64(len(winners))
+
 	} else if len(n.unvisitedChildren) > 0 {
 		//Grab the first unvisited child and run a simulation from that point
 		selectedChildIndex = n.actionCount - len(n.unvisitedChildren)
@@ -59,6 +60,7 @@ func (n *node) runSimulation() ([]Player, float64) {
 
 		winners = n.children[selectedChildIndex].simulate()
 		scoreToAdd = 1.0 / float64(len(winners))
+
 	} else {
 		//Select the child with the max UCT2 score with the current player
 		//and get the results to add from its selection
@@ -97,39 +99,27 @@ func (n *node) expand() {
 			panic(fmt.Sprintf("gmcts: Game returned an error when exploring the tree: %s", err))
 		}
 
-		newState := gameState{newGame, gameHash{newGame.Hash(), n.state.turn + 1}}
+		newState := gameState{newGame, newGame.Hash()}
 
 		//If we already have a copy in cache, use that and update
 		//this node and its parents
-		if cachedNode, made := n.tree.gameStates[newState.gameHash]; made {
+		if cachedNode, made := n.tree.gameStates[newState.GameHash]; made {
 			n.unvisitedChildren[i] = cachedNode
 		} else {
 			newNode := initializeNode(newState, n.tree)
 			n.unvisitedChildren[i] = newNode
 
 			//Save node for reuse
-			n.tree.gameStates[newState.gameHash] = newNode
+			n.tree.gameStates[newState.GameHash] = newNode
 		}
 	}
 }
 
 func (n *node) simulate() []Player {
-	game := n.state.Game
+	game := n.state.Game.Copy()
 	for !game.IsTerminal() {
-		var err error
-
-		actions := game.Len()
-		if actions <= 0 {
-			fmt.Println(!game.IsTerminal())
-			fmt.Println(game.Len())
-			panic(fmt.Sprintf("gmcts: game returned no actions on a non-terminal state: %#v", game))
-		}
-
-		randomIndex := n.tree.randSource.Intn(actions)
-		game, err = game.ApplyAction(randomIndex)
-		if err != nil {
-			panic(fmt.Sprintf("gmcts: game returned an error while searching the tree: %s", err))
-		}
+		randomIndex := n.tree.randSource.Intn(game.Len())
+		game.ApplyActionModify(randomIndex)
 	}
 	return game.Winners()
 }

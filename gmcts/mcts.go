@@ -18,7 +18,7 @@ var (
 )
 
 //NewMCTS returns a new MCTS wrapper
-func NewMCTS(initial Game) *MCTS {
+func NewMCTS(initial *Game) *MCTS {
 	return &MCTS{
 		init:  initial,
 		trees: make([]*Tree, 0),
@@ -47,11 +47,11 @@ func (m *MCTS) SpawnCustomTree(explorationConst float64) *Tree {
 	defer m.mutex.Unlock()
 
 	t := &Tree{
-		gameStates:       make(map[gameHash]*node),
+		gameStates:       make(map[GameHash]*node),
 		explorationConst: explorationConst,
 		randSource:       rand.New(rand.NewSource(m.seed)),
 	}
-	t.current = initializeNode(gameState{m.init, gameHash{m.init.Hash(), 0}}, t)
+	t.current = initializeNode(gameState{m.init, m.init.Hash()}, t)
 
 	m.seed++
 	return t

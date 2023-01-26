@@ -2,9 +2,6 @@ package gmcts
 
 import (
 	"testing"
-	"time"
-
-	tictactoe "git.sr.ht/~bonbon/go-tic-tac-toe"
 )
 
 func TestRounds(t *testing.T) {
@@ -32,22 +29,6 @@ func TestDepth(t *testing.T) {
 	depth := treeToTest.MaxDepth()
 	if depth != 9 {
 		t.Errorf("Tree has depth %d: wanted 0", depth)
-		t.FailNow()
-	}
-}
-
-func TestSearch(t *testing.T) {
-	newGame := tictactoe.NewGame()
-	mcts := NewMCTS(tttGame{newGame, newGame.GetActions()})
-	tree := mcts.SpawnTree()
-
-	timeToSearch := 1 * time.Millisecond
-	t0 := time.Now()
-	tree.Search(timeToSearch)
-	td := time.Now().Sub(t0)
-
-	if td < timeToSearch {
-		t.Errorf("Tree was searched for %s: wanted >= %s", td, timeToSearch)
 		t.FailNow()
 	}
 }

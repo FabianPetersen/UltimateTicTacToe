@@ -14,7 +14,7 @@ import (
 )
 
 type GameEngine struct {
-	game Game
+	game *gmcts.Game
 }
 
 var boardColors = []color.RGBA{
@@ -43,36 +43,35 @@ var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 func (g *GameEngine) Update() error {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		if g.game.IsTerminal() {
-			g.game = NewGame()
+			g.game = gmcts.NewGame()
 		}
 
+		for i := 0; i < 6 && !g.game.IsTerminal(); i++ {
+			if g.game.Player() == gmcts.Player1 {
+				randomIndex := randSource.Intn(g.game.Len())
+				actualMove, _ := g.game.GetMove(randomIndex)
+				g.game.MakeMove(g.game.CurrentBoard, actualMove)
+			} else {
+				actualMove := g.getBotMove()
+				g.game.MakeMove(g.game.CurrentBoard, actualMove)
+			}
+		}
 		/*
-			for i := 0; i < 6 && !g.game.IsTerminal(); i++ {
-				if g.game.turn {
-					randomIndex := randSource.Intn(g.game.Len())
-					actualMove, _ := g.game.GetMove(randomIndex)
-					g.game.MakeMove(g.game.currentBoard, actualMove)
-				} else {
-					actualMove := g.getBotMove()
-					g.game.MakeMove(g.game.currentBoard, actualMove)
-				}
+			if !g.game.IsTerminal() && g.game.Player() == gmcts.Player1 {
+				x, y := ebiten.CursorPosition()
+				boardIndex, posIndex := g.getBoardPos(float64(x), float64(y))
+				g.game.MakeMove(byte(boardIndex), posIndex)
 			}*/
-
-		if !g.game.IsTerminal() && g.game.turn {
-			x, y := ebiten.CursorPosition()
-			boardIndex, posIndex := g.getBoardPos(float64(x), float64(y))
-			g.game.MakeMove(byte(boardIndex), posIndex)
-		}
-	} else if !g.game.IsTerminal() && !g.game.turn {
+	} /*else if !g.game.IsTerminal() && g.game.Player() == gmcts.Player2 {
 		botmove := g.getBotMove()
-		g.game.MakeMove(g.game.currentBoard, botmove)
-	}
+		g.game.MakeMove(g.game.CurrentBoard, botmove)
+	}*/
 
 	return nil
 }
 
 func (g *GameEngine) getBotMove() int {
-	mcts := gmcts.NewMCTS(&g.game)
+	mcts := gmcts.NewMCTS(g.game)
 	tree := mcts.SpawnTree()
 	timeToSearch := 200 * time.Millisecond
 	tree.Search(timeToSearch)
@@ -109,7 +108,7 @@ func (g *GameEngine) DrawSingleGameEngine(screen *ebiten.Image, boardX float64, 
 	startY := offset/2 + (height * boardY)
 
 	// Print current board background color
-	if g.game.currentBoard == boardIndex {
+	if g.game.CurrentBoard == boardIndex {
 		ebitenutil.DrawRect(screen, startX, startY, width, height, activeBoardColor)
 	}
 
@@ -126,13 +125,13 @@ func (g *GameEngine) DrawSingleGameEngine(screen *ebiten.Image, boardX float64, 
 		for y := 0.0; y <= 2.0; y++ {
 			for x := 0.0; x <= 2.0; x++ {
 				// The item contains a symbol
-				if g.game.board[boardIndex]&(1<<i) != 0 {
+				if g.game.Board[boardIndex]&(1<<i) != 0 {
 
 					// The symbol is owned by player
 					if player == 0 {
 						drawX := startX + ((x + 0.5) * (width / 3.0))
 						drawy := startY + ((y + 0.5) * (height / 3.0))
-						ebitenutil.DrawCircle(screen, drawX, drawy, 5, rgba)
+						ebitenutil.DrawCircle(screen, drawX, drawy, width/9, rgba)
 					} else {
 						drawX := startX + ((x + 0.25) * (width / 3.0))
 						drawy := startY + ((y + 0.25) * (height / 3.0))
@@ -148,9 +147,9 @@ func (g *GameEngine) DrawSingleGameEngine(screen *ebiten.Image, boardX float64, 
 	if len(winners) > 0 {
 		if len(winners) >= 2 {
 			ebitenutil.DebugPrintAt(screen, "draw", int(startX+width/4), int(startY+height/4))
-		} else if winners[0] == player1 {
+		} else if winners[0] == gmcts.Player1 {
 			ebitenutil.DrawCircle(screen, startX+width/2, startY+height/2, 70, rgba)
-		} else if winners[0] == player2 {
+		} else if winners[0] == gmcts.Player2 {
 			ebitenutil.DrawRect(screen, startX+width/4, startY+height/4, width/2, height/2, rgba)
 		}
 	}
@@ -181,7 +180,7 @@ func main() {
 	ebiten.SetWindowSize(windowSizeW, windowSizeH)
 	ebiten.SetWindowTitle("Ultimate Tic-Tac-Toe")
 	if err := ebiten.RunGame(&GameEngine{
-		NewGame(),
+		gmcts.NewGame(),
 	}); err != nil {
 		log.Fatal(err)
 	}
