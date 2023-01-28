@@ -75,15 +75,25 @@ func (t Tree) MaxDepth() byte {
 func (t *Tree) bestAction() int {
 	root := t.current
 
-	//Select the child with the highest winrate
 	var bestAction int
-	bestWinRate := -1.0
-	player := root.state.Player()
-	for i := 0; i < root.actionCount; i++ {
-		winRate := root.children[i].nodeScore[player] / root.childVisits[i]
-		if winRate > bestWinRate {
-			bestAction = i
-			bestWinRate = winRate
+	//Select the child with the highest winrate
+	if t.bestActionPolicy == MAX_CHILD_SCORE {
+		bestWinRate := -1.0
+		player := root.state.Player()
+		for i := 0; i < root.actionCount; i++ {
+			winRate := root.children[i].nodeScore[player] / root.childVisits[i]
+			if winRate > bestWinRate {
+				bestAction = i
+				bestWinRate = winRate
+			}
+		}
+	} else if t.bestActionPolicy == ROBUST_CHILD {
+		mostVisists := -1.0
+		for i := 0; i < root.actionCount; i++ {
+			if root.childVisits[i] > mostVisists {
+				bestAction = i
+				mostVisists = root.childVisits[i]
+			}
 		}
 	}
 

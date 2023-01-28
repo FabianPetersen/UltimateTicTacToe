@@ -2,7 +2,6 @@ package gmcts
 
 import (
 	"errors"
-	"math/rand"
 	"sync"
 )
 
@@ -28,8 +27,8 @@ func NewMCTS(initial *Game) *MCTS {
 
 //SpawnTree creates a new search tree. The tree returned uses Sqrt(2) as the
 //exploration constant.
-func (m *MCTS) SpawnTree() *Tree {
-	return m.SpawnCustomTree(DefaultExplorationConst)
+func (m *MCTS) SpawnTree(policy BestActionPolicy) *Tree {
+	return m.SpawnCustomTree(DefaultExplorationConst, policy)
 }
 
 //SetSeed sets the seed of the next tree to be spawned.
@@ -42,14 +41,14 @@ func (m *MCTS) SetSeed(seed int64) {
 }
 
 //SpawnCustomTree creates a new search tree with a given exploration constant.
-func (m *MCTS) SpawnCustomTree(explorationConst float64) *Tree {
+func (m *MCTS) SpawnCustomTree(explorationConst float64, policy BestActionPolicy) *Tree {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	t := &Tree{
 		gameStates:       make(map[GameHash]*node),
 		explorationConst: explorationConst,
-		randSource:       rand.New(rand.NewSource(m.seed)),
+		bestActionPolicy: policy,
 	}
 	t.current = initializeNode(gameState{m.init, m.init.Hash()}, t)
 

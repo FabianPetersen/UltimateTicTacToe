@@ -1,7 +1,6 @@
 package gmcts
 
 import (
-	"math/rand"
 	"sync"
 )
 
@@ -13,7 +12,7 @@ type gameState struct {
 	GameHash
 }
 
-type GameHash uint64
+type GameHash interface{}
 
 //MCTS contains functionality for the MCTS algorithm
 type MCTS struct {
@@ -28,12 +27,14 @@ type node struct {
 	tree  *Tree
 
 	children          []*node
-	unvisitedChildren []*node
+	unvisitedChildren int
 	childVisits       []float64
 	actionCount       int
 
 	nodeScore  map[Player]float64
 	nodeVisits int
+
+	heuristicScore map[Player]float64
 }
 
 //Tree represents a game state tree
@@ -41,5 +42,12 @@ type Tree struct {
 	current          *node
 	gameStates       map[GameHash]*node
 	explorationConst float64
-	randSource       *rand.Rand
+	bestActionPolicy BestActionPolicy
 }
+
+type BestActionPolicy byte
+
+const (
+	MAX_CHILD_SCORE BestActionPolicy = 0
+	ROBUST_CHILD    BestActionPolicy = 1
+)

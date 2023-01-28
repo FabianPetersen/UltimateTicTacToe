@@ -43,6 +43,75 @@ func (g *Game) Len() int {
 	return int(boardLength - bitCount((g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF))
 }
 
+func (g *Game) GreedyMove() int {
+	length := g.Len()
+	var i = 0
+	for i = 0; i < length; i++ {
+		move, _ := g.GetMove(i)
+		if g.currentPlayer == Player1 && checkCloseWinningSequenceMove(byte(move), g.Board[i]&0x1FF, (g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF) {
+			return i
+		} else if g.currentPlayer == Player2 && checkCloseWinningSequenceMove(byte(move), (g.Board[i]>>9)&0x1FF, (g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF) {
+			return i
+		}
+	}
+	return randSource.Intn(length)
+}
+
+func (g *Game) Heuristic() map[Player]float64 {
+	var maxScore float64 = 141 // 20 + 9*5 + 10 + 4*3 + 9*4 + 9*2
+	var minScore float64 = -maxScore
+	// Min-max normalization (usually called feature scaling)
+	// (x - xmin) / (xmax - xmin)
+
+	// Count number of small boards (+5)
+	p1 := bitCount(g.overallBoard&0x1FF) * 5
+	p2 := bitCount((g.overallBoard>>9)&0x1FF) * 5
+
+	// Win in center board (+10)
+	if ((g.overallBoard >> 4) & 0x1) > 0 {
+		p1 += 10
+	} else if ((g.overallBoard >> (9 + 4)) & 0x1) > 0 {
+		p2 += 10
+	}
+
+	// Corner boards (+3)
+	p1 += bitCount(g.overallBoard&0x145) * 3
+	p2 += bitCount((g.overallBoard>>9)&0x145) * 3
+
+	// Center square in any small board (+3)
+	for i := 0; i < boardLength; i++ {
+		if ((g.Board[i] >> 4) & 0x1) > 0 {
+			p1 += 3
+		} else if ((g.Board[i] >> (9 + 4)) & 0x1) > 0 {
+			p2 += 3
+		}
+	}
+
+	// (overall) Sequence of two winning board which can be continued for a winning sequence (+4)
+	overallBoard := ((g.overallBoard >> 18) | (g.overallBoard >> 9) | g.overallBoard) & 0x1FF
+	p1 += checkCloseWinningSequence(g.overallBoard&0x1FF, overallBoard) * 4
+	p2 += checkCloseWinningSequence((g.overallBoard>>9)&0x1FF, overallBoard) * 4
+
+	// Sequence of two winning board which can be continued for a winning sequence (+2)
+	for i := 0; i < boardLength; i++ {
+		board := ((g.Board[i] >> 9) | g.Board[i]) & 0x1FF
+		p1 += checkCloseWinningSequence(board&0x1FF, board) * 2
+		p2 += checkCloseWinningSequence((board>>9)&0x1FF, board) * 2
+	}
+
+	// Overall win/loss
+	if checkCompleted(g.overallBoard & 0x1FF) {
+		p1 += 20
+	} else if checkCompleted((g.overallBoard >> 9) & 0x1FF) {
+		p2 += 20
+	}
+
+	return map[Player]float64{
+		Player1: (float64(p1-p2) - minScore) / (maxScore - minScore),
+		Player2: (float64(p2-p1) - minScore) / (maxScore - minScore),
+	}
+}
+
 func (g *Game) GetMove(i int) (int, error) {
 	board := (g.Board[g.CurrentBoard] | (g.Board[g.CurrentBoard] >> 9)) & 0x1FF
 	count := 0
@@ -195,6 +264,27 @@ func (g *Game) Winner(boardIndex byte) []Player {
 
 func checkCompleted(test uint32) bool {
 	return (test&0x7) == 0x7 || (test&0x38) == 0x38 || (test&0x1C0) == 0x1C0 || (test&0x49) == 0x49 || (test&0x92) == 0x92 || (test&0x124) == 0x124 || (test&0x111) == 0x111 || (test&0x54) == 0x54
+}
+
+func checkCloseWinningSequence(player uint32, board uint32) uint32 {
+	var i byte = 0
+	var count uint32 = 0
+	for ; i < boardLength; i++ {
+		if checkCloseWinningSequenceMove(i, player, board) {
+			count += 1
+		}
+	}
+	return count
+}
+
+func checkCloseWinningSequenceMove(i byte, player uint32, board uint32) bool {
+	// Move already occupied
+	if board&(0x1<<i) > 0 {
+		return false
+	}
+
+	player |= 0x1 << i
+	return checkCompleted(player)
 }
 
 func bitCount(u uint32) uint32 {

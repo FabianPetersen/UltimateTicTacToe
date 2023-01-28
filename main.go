@@ -40,39 +40,43 @@ const height = (windowSizeH - offset*2) / screenSize
 
 var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 
+const HUMAN = true
+
 func (g *GameEngine) Update() error {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		if g.game.IsTerminal() {
 			g.game = gmcts.NewGame()
 		}
 
-		for i := 0; i < 6 && !g.game.IsTerminal(); i++ {
-			if g.game.Player() == gmcts.Player1 {
-				randomIndex := randSource.Intn(g.game.Len())
-				actualMove, _ := g.game.GetMove(randomIndex)
-				g.game.MakeMove(g.game.CurrentBoard, actualMove)
-			} else {
-				actualMove := g.getBotMove()
-				g.game.MakeMove(g.game.CurrentBoard, actualMove)
+		if !HUMAN {
+			for i := 0; i < 6 && !g.game.IsTerminal(); i++ {
+				if g.game.Player() == gmcts.Player1 {
+					randomIndex := randSource.Intn(g.game.Len())
+					actualMove, _ := g.game.GetMove(randomIndex)
+					g.game.MakeMove(g.game.CurrentBoard, actualMove)
+				} else {
+					actualMove := g.getBotMove()
+					g.game.MakeMove(g.game.CurrentBoard, actualMove)
+				}
 			}
 		}
-		/*
-			if !g.game.IsTerminal() && g.game.Player() == gmcts.Player1 {
-				x, y := ebiten.CursorPosition()
-				boardIndex, posIndex := g.getBoardPos(float64(x), float64(y))
-				g.game.MakeMove(byte(boardIndex), posIndex)
-			}*/
-	} /*else if !g.game.IsTerminal() && g.game.Player() == gmcts.Player2 {
+
+		if HUMAN && !g.game.IsTerminal() && g.game.Player() == gmcts.Player1 {
+			x, y := ebiten.CursorPosition()
+			boardIndex, posIndex := g.getBoardPos(float64(x), float64(y))
+			g.game.MakeMove(byte(boardIndex), posIndex)
+		}
+	} else if HUMAN && !g.game.IsTerminal() && g.game.Player() == gmcts.Player2 {
 		botmove := g.getBotMove()
 		g.game.MakeMove(g.game.CurrentBoard, botmove)
-	}*/
+	}
 
 	return nil
 }
 
 func (g *GameEngine) getBotMove() int {
 	mcts := gmcts.NewMCTS(g.game)
-	tree := mcts.SpawnTree()
+	tree := mcts.SpawnTree(gmcts.ROBUST_CHILD)
 	timeToSearch := 200 * time.Millisecond
 	tree.Search(timeToSearch)
 	mcts.AddTree(tree)
