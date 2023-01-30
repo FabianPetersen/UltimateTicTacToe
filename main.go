@@ -62,12 +62,12 @@ func (g *GameEngine) Update() error {
 			}
 		}
 
-		if HUMAN && !g.game.IsTerminal() && g.game.Player() == Game.Player1 {
+		if HUMAN && !g.game.IsTerminal() && g.game.Player() == Game.Player2 {
 			x, y := ebiten.CursorPosition()
 			boardIndex, posIndex := g.getBoardPos(float64(x), float64(y))
 			g.game.MakeMove(byte(boardIndex), posIndex)
 		}
-	} else if HUMAN && !g.game.IsTerminal() && g.game.Player() == Game.Player2 {
+	} else if HUMAN && !g.game.IsTerminal() && g.game.Player() == Game.Player1 {
 		botmove := g.getBotMove()
 		g.game.MakeMove(g.game.CurrentBoard, botmove)
 	}

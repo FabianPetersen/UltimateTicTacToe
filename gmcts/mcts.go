@@ -47,7 +47,7 @@ func (m *MCTS) SpawnCustomTree(explorationConst float64, policy BestActionPolicy
 	defer m.mutex.Unlock()
 
 	t := &Tree{
-		gameStates:       make(map[GameHash]*node),
+		gameStates:       make(map[Game.GameHash]*node),
 		explorationConst: explorationConst,
 		bestActionPolicy: policy,
 		treePolicy:       treePolicy,

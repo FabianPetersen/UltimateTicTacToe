@@ -6,14 +6,14 @@ import (
 )
 
 type Node struct {
-	state     *Game.Game
-	bestChild int
-	bestValue int
+	state *Game.Game
 }
 
-func NewNode(state *Game.Game) *Node {
+func NewNode(state *Game.Game, action int) *Node {
+	cp := state.Copy()
+	cp.ApplyActionModify(action)
 	return &Node{
-		state: state,
+		state: cp,
 	}
 }
 
@@ -26,9 +26,7 @@ func (n *Node) Search(alpha float64, beta float64, depth int, maxPlayer Game.Pla
 		value := math.Inf(-1)
 		bestMove := 0
 		for i := 0; i < n.state.Len(); i++ {
-			game, _ := n.state.ApplyAction(i)
-			child := NewNode(game)
-			searchValue, _ := child.Search(alpha, beta, depth-1, maxPlayer)
+			searchValue, _ := NewNode(n.state, i).Search(alpha, beta, depth-1, maxPlayer)
 			if searchValue >= value {
 				value = searchValue
 				bestMove = i
@@ -45,9 +43,7 @@ func (n *Node) Search(alpha float64, beta float64, depth int, maxPlayer Game.Pla
 		value := math.Inf(1)
 		bestMove := 0
 		for i := 0; i < n.state.Len(); i++ {
-			game, _ := n.state.ApplyAction(i)
-			child := NewNode(game)
-			searchValue, _ := child.Search(alpha, beta, depth-1, maxPlayer)
+			searchValue, _ := NewNode(n.state, i).Search(alpha, beta, depth-1, maxPlayer)
 			if searchValue <= value {
 				value = searchValue
 				bestMove = i
@@ -67,7 +63,9 @@ type Minimax struct {
 }
 
 func NewMinimax(state *Game.Game) *Minimax {
-	return &Minimax{root: NewNode(state), depth: 9}
+	return &Minimax{root: &Node{
+		state: state,
+	}, depth: 9}
 }
 
 func (minimax *Minimax) Search() int {
