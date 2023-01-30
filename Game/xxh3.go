@@ -1,4 +1,4 @@
-package gmcts
+package Game
 
 import (
 	"encoding/binary"

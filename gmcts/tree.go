@@ -5,12 +5,12 @@ import (
 	"time"
 )
 
-//Search searches the tree for a specified time
+//SearchTime searches the tree for a specified time
 //
-//Search will panic if the Game's ApplyAction
+//SearchTime will panic if the Game's ApplyAction
 //method returns an error or if any game state's Hash()
 //method returns a noncomparable value.
-func (t *Tree) Search(duration time.Duration) {
+func (t *Tree) SearchTime(duration time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	t.SearchContext(ctx)
@@ -27,7 +27,7 @@ func (t *Tree) SearchContext(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			t.search()
+			t.Search()
 		}
 	}
 }
@@ -39,12 +39,12 @@ func (t *Tree) SearchContext(ctx context.Context) {
 //method returns a noncomparable value.
 func (t *Tree) SearchRounds(rounds int) {
 	for i := 0; i < rounds; i++ {
-		t.search()
+		t.Search()
 	}
 }
 
-//search performs 1 round of the MCTS algorithm
-func (t *Tree) search() {
+//Search performs 1 round of the MCTS algorithm
+func (t *Tree) Search() {
 	t.current.runSimulation()
 }
 
@@ -65,8 +65,8 @@ func (t Tree) Nodes() int {
 func (t Tree) MaxDepth() byte {
 	var maxDepth byte = 0
 	for _, node := range t.gameStates {
-		if node.state.turn > maxDepth {
-			maxDepth = node.state.turn
+		if node.state.Turn > maxDepth {
+			maxDepth = node.state.Turn
 		}
 	}
 	return maxDepth
@@ -90,7 +90,7 @@ func (t *Tree) bestAction() int {
 	} else if t.bestActionPolicy == ROBUST_CHILD {
 		mostVisists := -1.0
 		for i := 0; i < root.actionCount; i++ {
-			if root.childVisits[i] > mostVisists {
+			if root.childVisits[i] >= mostVisists {
 				bestAction = i
 				mostVisists = root.childVisits[i]
 			}

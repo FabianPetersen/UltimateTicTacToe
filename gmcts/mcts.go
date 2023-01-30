@@ -2,6 +2,7 @@ package gmcts
 
 import (
 	"errors"
+	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"sync"
 )
 
@@ -13,11 +14,11 @@ var (
 	ErrTerminal = errors.New("gmcts: given game state is a terminal state, therefore, it cannot return an action")
 
 	//ErrNoActions notifies the callee that the given state has <= 0 actions
-	ErrNoActions = errors.New("gmcts: given game state is not terminal, yet the state has <= 0 actions to search through")
+	ErrNoActions = errors.New("gmcts: given game state is not terminal, yet the state has <= 0 actions to Search through")
 )
 
 //NewMCTS returns a new MCTS wrapper
-func NewMCTS(initial *Game) *MCTS {
+func NewMCTS(initial *Game.Game) *MCTS {
 	return &MCTS{
 		init:  initial,
 		trees: make([]*Tree, 0),
@@ -25,10 +26,10 @@ func NewMCTS(initial *Game) *MCTS {
 	}
 }
 
-//SpawnTree creates a new search tree. The tree returned uses Sqrt(2) as the
+//SpawnTree creates a new Search tree. The tree returned uses Sqrt(2) as the
 //exploration constant.
-func (m *MCTS) SpawnTree(policy BestActionPolicy) *Tree {
-	return m.SpawnCustomTree(DefaultExplorationConst, policy)
+func (m *MCTS) SpawnTree(policy BestActionPolicy, treePolicy TreePolicy) *Tree {
+	return m.SpawnCustomTree(DefaultExplorationConst, policy, treePolicy)
 }
 
 //SetSeed sets the seed of the next tree to be spawned.
@@ -40,8 +41,8 @@ func (m *MCTS) SetSeed(seed int64) {
 	m.seed = seed
 }
 
-//SpawnCustomTree creates a new search tree with a given exploration constant.
-func (m *MCTS) SpawnCustomTree(explorationConst float64, policy BestActionPolicy) *Tree {
+//SpawnCustomTree creates a new Search tree with a given exploration constant.
+func (m *MCTS) SpawnCustomTree(explorationConst float64, policy BestActionPolicy, treePolicy TreePolicy) *Tree {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -49,6 +50,7 @@ func (m *MCTS) SpawnCustomTree(explorationConst float64, policy BestActionPolicy
 		gameStates:       make(map[GameHash]*node),
 		explorationConst: explorationConst,
 		bestActionPolicy: policy,
+		treePolicy:       treePolicy,
 	}
 	t.current = initializeNode(gameState{m.init, m.init.Hash()}, t)
 
@@ -70,7 +72,7 @@ func (m *MCTS) AddTree(t *Tree) {
 //percentage of each action.
 //
 //BestAction returns ErrNoTrees if it has received no trees
-//to search through, ErrNoActions if the current state
+//to Search through, ErrNoActions if the current state
 //it's considering has no legal actions, or ErrTerminal
 //if the current state it's considering is terminal.
 func (m *MCTS) BestAction() (int, error) {

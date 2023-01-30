@@ -2,6 +2,7 @@ package gmcts
 
 import (
 	"fmt"
+	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"sync"
 	"testing"
 
@@ -24,7 +25,7 @@ func (g tttGame) Len() int {
 	return len(g.actions)
 }
 
-func (g tttGame) ApplyAction(i int) (Game, error) {
+func (g tttGame) ApplyAction(i int) (Game.Game, error) {
 	game, err := g.game.ApplyAction(g.actions[i])
 
 	return tttGame{game, game.GetActions()}, err

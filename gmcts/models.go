@@ -1,22 +1,18 @@
 package gmcts
 
 import (
+	Game2 "github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"sync"
 )
 
-//Player is an id for the player
-type Player byte
-
 type gameState struct {
-	*Game
-	GameHash
+	*Game2.Game
+	Game2.GameHash
 }
-
-type GameHash interface{}
 
 //MCTS contains functionality for the MCTS algorithm
 type MCTS struct {
-	init  *Game
+	init  *Game2.Game
 	trees []*Tree
 	mutex *sync.RWMutex
 	seed  int64
@@ -31,18 +27,19 @@ type node struct {
 	childVisits       []float64
 	actionCount       int
 
-	nodeScore  map[Player]float64
+	nodeScore  map[Game2.Player]float64
 	nodeVisits int
 
-	heuristicScore map[Player]float64
+	heuristicScore map[Game2.Player]float64
 }
 
 //Tree represents a game state tree
 type Tree struct {
 	current          *node
-	gameStates       map[GameHash]*node
+	gameStates       map[Game2.GameHash]*node
 	explorationConst float64
 	bestActionPolicy BestActionPolicy
+	treePolicy       TreePolicy
 }
 
 type BestActionPolicy byte
@@ -50,4 +47,11 @@ type BestActionPolicy byte
 const (
 	MAX_CHILD_SCORE BestActionPolicy = 0
 	ROBUST_CHILD    BestActionPolicy = 1
+)
+
+type TreePolicy byte
+
+const (
+	UCT2      TreePolicy = 0
+	SMITSIMAX TreePolicy = 1
 )
