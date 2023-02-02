@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
+	"github.com/FabianPetersen/UltimateTicTacToe/gmcts"
 	"github.com/FabianPetersen/UltimateTicTacToe/minimax"
+	mtd_f2 "github.com/FabianPetersen/UltimateTicTacToe/mtd_f"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -15,7 +17,8 @@ import (
 )
 
 type GameEngine struct {
-	game *Game.Game
+	game         *Game.Game
+	restartCount int
 }
 
 var boardColors = []color.RGBA{
@@ -29,8 +32,17 @@ var boardColors = []color.RGBA{
 	colornames.Magenta,
 	colornames.Grey,
 }
-
 var activeBoardColor = color.RGBA{G: 255, A: 0x3F}
+
+type BOT_ALGORITHM byte
+
+const (
+	MINIMAX                 BOT_ALGORITHM = 0
+	MONTE_CARLO_TREE_SEARCH BOT_ALGORITHM = 1
+	MTD_F                   BOT_ALGORITHM = 2
+)
+
+var activeBotAlgorithm = MTD_F
 
 const windowSizeW = 320 * 2
 const windowSizeH = 320 * 2
@@ -46,7 +58,12 @@ const HUMAN = true
 func (g *GameEngine) Update() error {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		if g.game.IsTerminal() {
-			g.game = Game.NewGame()
+			g.restartCount += 1
+			if g.restartCount == 3 {
+				g.restartCount = 0
+				g.game = Game.NewGame()
+				return nil
+			}
 		}
 
 		if !HUMAN {
@@ -76,20 +93,27 @@ func (g *GameEngine) Update() error {
 }
 
 func (g *GameEngine) getBotMove() int {
-	mini := minimax.NewMinimax(g.game)
-	botMove := mini.Search()
-	actualMove, _ := g.game.GetMove(botMove)
-	return actualMove
-	/*
+	timeToSearch := 1000 * time.Millisecond
+	botMove := 0
+	switch activeBotAlgorithm {
+	case MTD_F:
+		mtd_f := mtd_f2.NewMTD_F(g.game, 12)
+		botMove = mtd_f.IterativeDeepening(timeToSearch)
+
+	case MINIMAX:
+		mini := minimax.NewMinimax(g.game)
+		botMove = mini.Search()
+
+	case MONTE_CARLO_TREE_SEARCH:
 		mcts := gmcts.NewMCTS(g.game)
 		tree := mcts.SpawnTree(gmcts.ROBUST_CHILD, gmcts.SMITSIMAX)
-		timeToSearch := 200 * time.Millisecond
 		tree.SearchTime(timeToSearch)
 		mcts.AddTree(tree)
-		botMove, _ := mcts.BestAction()
-		actualMove, _ := g.game.GetMove(botMove)
-		return actualMove
-	*/
+		botMove, _ = mcts.BestAction()
+	}
+
+	actualMove, _ := g.game.GetMove(botMove)
+	return actualMove
 }
 
 func (g *GameEngine) getBoardPos(clickX float64, clickY float64) (boardIndex int, posIndex int) {
@@ -192,6 +216,7 @@ func main() {
 	ebiten.SetWindowTitle("Ultimate Tic-Tac-Toe")
 	gameEngine := &GameEngine{
 		Game.NewGame(),
+		5,
 	}
 
 	if err := ebiten.RunGame(gameEngine); err != nil {
