@@ -38,7 +38,7 @@ var hash = make([]byte, (boardLength*4)+2)
 var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 
 /*	Middle -> corner -> other */
-var moveOrder = []int{4, 0, 2, 6, 8, 1, 3, 4, 7}
+var moveOrder = []int{4, 0, 8, 2, 6, 1, 3, 4, 7}
 
 type Game struct {
 	CurrentPlayer  Player
@@ -91,11 +91,13 @@ func (g *Game) HeuristicPlayer(player Player) float64 {
 	score += bitCount((g.overallBoard>>offset)&0x145) * 3
 
 	// Center square in any small board (+3)
-	for i := 0; i < boardLength; i++ {
-		if ((g.Board[i] >> (offset + 4)) & 0x1) > 0 {
-			score += 2
+	/*
+		for i := 0; i < boardLength; i++ {
+			if ((g.Board[i] >> (offset + 4)) & 0x1) > 0 {
+				score += 2
+			}
 		}
-	}
+	*/
 
 	// (overall) Sequence of two winning board which can be continued for a winning sequence (+4)
 	overallBoard := ((g.overallBoard >> 18) | (g.overallBoard >> 9) | g.overallBoard) & 0x1FF

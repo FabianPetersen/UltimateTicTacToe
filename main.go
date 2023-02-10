@@ -5,7 +5,7 @@ import (
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"github.com/FabianPetersen/UltimateTicTacToe/gmcts"
 	"github.com/FabianPetersen/UltimateTicTacToe/minimax"
-	mtd_f2 "github.com/FabianPetersen/UltimateTicTacToe/mtd_f"
+	"github.com/FabianPetersen/UltimateTicTacToe/mtd"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -97,8 +97,8 @@ func (g *GameEngine) getBotMove() int {
 	botMove := 0
 	switch activeBotAlgorithm {
 	case MTD_F:
-		mtd_f := mtd_f2.NewMTD_F(g.game, 12)
-		botMove = mtd_f.IterativeDeepening(timeToSearch)
+		mtDriver := mtd.NewMTD(g.game, 6)
+		botMove = mtDriver.MTD_F()
 
 	case MINIMAX:
 		mini := minimax.NewMinimax(g.game)
