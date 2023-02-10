@@ -1,6 +1,8 @@
 package mtd
 
-import "github.com/FabianPetersen/UltimateTicTacToe/Game"
+import (
+	"github.com/FabianPetersen/UltimateTicTacToe/Game"
+)
 
 func first(game *Game.Game, tt *Storage) float64 {
 	if lookup, exists := tt.Get(game.Hash()); exists {

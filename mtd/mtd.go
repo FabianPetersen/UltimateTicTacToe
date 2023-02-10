@@ -2,7 +2,6 @@ package mtd
 
 import (
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
-	"math"
 	"time"
 )
 
@@ -32,12 +31,21 @@ func NewStorage() Storage {
 const inf float64 = 1000000
 const eps = 0.001
 
+type Flag byte
+
+const (
+	EXACT       Flag = 0
+	UPPER_BOUND Flag = 1
+	LOWER_BOUND Flag = 2
+)
+
 type MTDNode struct {
 	State      *Game.Game
 	LowerBound float64
 	UpperBound float64
 	BestMove   int
 	Depth      byte
+	Flag       Flag
 }
 
 type MTD struct {
@@ -55,7 +63,7 @@ func NewMTD(game *Game.Game, maxDepth byte) *MTD {
 		maxDepth:    maxDepth,
 		aiMove:      0,
 		tt:          &storage,
-		maxDuration: time.Second * 2,
+		maxDuration: time.Second * 10,
 	}
 }
 
@@ -83,10 +91,7 @@ func (mtd *MTD) mt(game *Game.Game, gamma float64, depth byte, origDepth byte, m
 
 	bestValue := -inf
 	if depth == 0 || game.IsTerminal() {
-		score := game.HeuristicPlayer(maxPlayer)
-		if score != 0 {
-			score = score - 0.99*float64(depth)*math.Abs(score)/score
-		}
+		score := game.HeuristicPlayer(maxPlayer) * (1 + 0.001*float64(depth))
 		lowerBound, upperBound, bestValue = score, score, score
 
 	} else {
@@ -135,7 +140,7 @@ func (mtd *MTD) mtd(game *Game.Game, first First, next Next, depth byte) float64
 	f := first(game, mtd.tt)
 	bound, bestValue := f, f
 	lowerBound, upperBound := -inf, inf
-	for start.Sub(time.Now()) < mtd.maxDuration && lowerBound != upperBound {
+	for time.Now().Sub(start) < mtd.maxDuration && lowerBound < upperBound {
 		bound = next(lowerBound, upperBound, bestValue, bound)
 		bestValue = mtd.mt(game, bound-eps, depth, depth, game.CurrentPlayer)
 		if bestValue < bound {
