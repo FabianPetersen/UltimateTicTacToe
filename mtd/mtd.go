@@ -91,7 +91,7 @@ func (mtd *MTD) mt(game *Game.Game, gamma float64, depth byte, origDepth byte, m
 
 	bestValue := -inf
 	if depth == 0 || game.IsTerminal() {
-		score := game.HeuristicPlayer(maxPlayer) * (1 + 0.001*float64(depth))
+		score := game.Heuristic()[maxPlayer] * (1 + 0.001*float64(depth))
 		lowerBound, upperBound, bestValue = score, score, score
 
 	} else {

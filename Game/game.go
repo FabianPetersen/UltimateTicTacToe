@@ -59,56 +59,9 @@ func (g *Game) getAllAvailableMoves() []byte {
 	return moves
 }
 
-func (g *Game) getFilteredAvailableMoves() []byte {
-	moves := g.getAllAvailableMoves()
-	filtered := g.filterSuddenDeathMoves(moves)
-	filterGreedyMove := g.filterGreedyMove(filtered)
-
-	if len(filterGreedyMove) > 0 {
-		return filterGreedyMove
-	} else if len(filtered) > 0 {
-		return filtered
-	}
-	return moves
-}
-
-func (g *Game) filterGreedyMove(moves []byte) []byte {
-	offset := 0
-	if g.CurrentPlayer == Player2 {
-		offset = 9
-	}
-
-	closeWinning := []byte{}
-	for _, move := range moves {
-		if checkCloseWinningSequenceMove(move, (g.Board[g.CurrentBoard]>>offset)&0x1FF, (g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF) {
-			closeWinning = append(closeWinning, move)
-		}
-	}
-	return closeWinning
-}
-
-func (g *Game) filterSuddenDeathMoves(moves []byte) []byte {
-	enemyOffset := 9
-	if g.CurrentPlayer == Player2 {
-		enemyOffset = 0
-	}
-
-	// Check if enemy can win next board if we choose a move
-	var acceptableMoves []byte
-	for _, move := range moves {
-		// check if the enemy has any
-		board := ((g.Board[move] >> 9) | g.Board[move]) & 0x1FF
-		if checkCloseWinningSequence((g.Board[move]>>enemyOffset)&0x1FF, board) == 0 {
-			acceptableMoves = append(acceptableMoves, move)
-		}
-	}
-	return acceptableMoves
-}
-
 //Len returns the number of actions to consider.
 func (g *Game) Len() int {
 	return len(g.getFilteredAvailableMoves())
-	//return int(boardLength - bitCount((g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF))
 }
 
 func (g *Game) GreedyMove() int {
@@ -125,87 +78,9 @@ func (g *Game) GreedyMove() int {
 	return randSource.Intn(length)
 }
 
-func (g *Game) HeuristicPlayer(player Player) float64 {
-	// Don't rerun calculation unless needed
-	if score, ok := g.heuristicStore[player]; ok {
-		return score
-	}
-
-	offset := 0
-	if player == Player2 {
-		offset = 9
-	}
-
-	// Count number of small boards (+5)
-	score := bitCount((g.overallBoard>>offset)&0x1FF) * 5
-
-	// Win in center board (+10)
-	if ((g.overallBoard >> (offset + 4)) & 0x1) > 0 {
-		score += 10
-	}
-
-	// Corner boards (+3)
-	score += bitCount((g.overallBoard>>offset)&0x145) * 3
-
-	// Center square in any small board (+3)
-	/*
-		for i := 0; i < boardLength; i++ {
-			if ((g.Board[i] >> (offset + 4)) & 0x1) > 0 {
-				score += 2
-			}
-		}
-	*/
-
-	// (overall) Sequence of two winning board which can be continued for a winning sequence (+4)
-	overallBoard := ((g.overallBoard >> 18) | (g.overallBoard >> 9) | g.overallBoard) & 0x1FF
-	score += checkCloseWinningSequence((g.overallBoard>>offset)&0x1FF, overallBoard) * 4
-
-	// Sequence of two winning board which can be continued for a winning sequence (+2)
-	for i := 0; i < boardLength; i++ {
-		board := ((g.Board[i] >> 9) | g.Board[i]) & 0x1FF
-		score += checkCloseWinningSequence((g.Board[i]>>offset)&0x1FF, board) * 1
-	}
-
-	// Overall win/loss
-	if checkCompleted((g.overallBoard >> offset) & 0x1FF) {
-		score += 10
-	}
-
-	g.heuristicStore[player] = float64(score)
-	return float64(score)
-}
-
-func (g *Game) Heuristic() map[Player]float64 {
-	var maxScore float64 = 141 // 20 + 9*5 + 10 + 4*3 + 9*4 + 9*2
-	var minScore float64 = -maxScore
-	// Min-max normalization (usually called feature scaling)
-	// (x - xmin) / (xmax - xmin)
-
-	p1 := g.HeuristicPlayer(Player1)
-	p2 := g.HeuristicPlayer(Player2)
-	return map[Player]float64{
-		Player1: (p1 - p2 - minScore) / (maxScore - minScore),
-		Player2: (p2 - p1 - minScore) / (maxScore - minScore),
-	}
-}
-
 func (g *Game) GetMove(i int) (int, error) {
 	moves := g.getFilteredAvailableMoves()
 	return int(moves[i]), nil
-
-	/*
-		count := 0
-		board := (g.Board[g.CurrentBoard] | (g.Board[g.CurrentBoard] >> 9)) & 0x1FF
-		for _, move := range moveOrder {
-			if board&(0x1<<move) == 0 {
-				if i == count {
-					return int(move), nil
-				}
-				count += 1
-			}
-		}
-		return 0, errors.New("could not find move")
-	*/
 }
 
 //ApplyAction applies the ith action (0-indexed) to the game state,
@@ -284,6 +159,7 @@ func (g *Game) Copy() *Game {
 }
 
 func (g *Game) MakeMove(boardIndex byte, pos int) {
+	g.heuristicStore = map[Player]float64{}
 	// Check if the board is empty
 	if boardIndex == g.CurrentBoard && g.Board[boardIndex]&(1<<pos) == 0 && g.Board[boardIndex]&(1<<(pos+9)) == 0 {
 		if g.CurrentPlayer == Player1 {
@@ -297,7 +173,7 @@ func (g *Game) MakeMove(boardIndex byte, pos int) {
 		winners := g.Winner(g.CurrentBoard)
 
 		// Only switch board is a space is available
-		if (g.overallBoard>>pos)&0x1 == 0 && (g.overallBoard>>(pos+9))&0x1 == 0 && (g.overallBoard>>(pos+18))&0x1 == 0 {
+		if !g.IsBoardFinished(pos) {
 			g.CurrentBoard = byte(pos)
 			// The current and target board is completed
 		} else if len(winners) > 0 {
@@ -309,6 +185,10 @@ func (g *Game) MakeMove(boardIndex byte, pos int) {
 		}
 		g.Turn += 1
 	}
+}
+
+func (g *Game) IsBoardFinished(pos int) bool {
+	return !((g.overallBoard>>pos)&0x1 == 0 && (g.overallBoard>>(pos+9))&0x1 == 0 && (g.overallBoard>>(pos+18))&0x1 == 0)
 }
 
 func (g *Game) OverallWinner() []Player {
@@ -343,35 +223,4 @@ func (g *Game) Winner(boardIndex byte) []Player {
 	}
 
 	return []Player{}
-}
-
-func checkCompleted(test uint32) bool {
-	return (test&0x7) == 0x7 || (test&0x38) == 0x38 || (test&0x1C0) == 0x1C0 || (test&0x49) == 0x49 || (test&0x92) == 0x92 || (test&0x124) == 0x124 || (test&0x111) == 0x111 || (test&0x54) == 0x54
-}
-
-func checkCloseWinningSequence(player uint32, board uint32) uint32 {
-	var i byte = 0
-	var count uint32 = 0
-	for ; i < boardLength; i++ {
-		if checkCloseWinningSequenceMove(i, player, board) {
-			count += 1
-		}
-	}
-	return count
-}
-
-func checkCloseWinningSequenceMove(i byte, player uint32, board uint32) bool {
-	// Move already occupied
-	if board&(0x1<<i) > 0 {
-		return false
-	}
-
-	player |= 0x1 << i
-	return checkCompleted(player)
-}
-
-func bitCount(u uint32) uint32 {
-	uCount := uint32(0)
-	uCount = u - ((u >> 1) & 033333333333) - ((u >> 2) & 011111111111)
-	return ((uCount + (uCount >> 3)) & 030707070707) % 63
 }
