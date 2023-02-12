@@ -50,7 +50,7 @@ type Node struct {
 
 func NewNode(state *Game.Game, action int) *Node {
 	cp := state.Copy()
-	cp.ApplyActionModify(int(action))
+	cp.ApplyActionModify(action)
 
 	// Return the old node if exists
 	if oldNode, exists := TranspositionTable.Get(cp.Hash()); exists {
@@ -85,7 +85,7 @@ func (n *Node) Search(alpha float64, beta float64, depth byte, maxPlayer Game.Pl
 	var value float64 = 0
 	var currentBestMove int = 0
 	if depth == 0 || n.State.IsTerminal() {
-		value = n.State.HeuristicPlayer(maxPlayer)
+		return n.State.HeuristicPlayer(maxPlayer), n.bestMove
 
 		// This is a max node
 	} else if n.State.CurrentPlayer == maxPlayer {
@@ -147,8 +147,9 @@ type Minimax struct {
 
 func NewMinimax(state *Game.Game) *Minimax {
 	return &Minimax{root: &Node{
-		State: state,
-	}, depth: 9}
+		State:  state.Copy(),
+		cached: false,
+	}, depth: 5}
 }
 
 func (minimax *Minimax) Search() int {

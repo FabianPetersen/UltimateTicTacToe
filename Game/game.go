@@ -1,7 +1,6 @@
 package Game
 
 import (
-	"errors"
 	"math/rand"
 	"time"
 )
@@ -38,7 +37,7 @@ var hash = make([]byte, (boardLength*4)+2)
 var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 
 /*	Middle -> corner -> other */
-var moveOrder = []int{4, 0, 8, 2, 6, 1, 3, 4, 7}
+var moveOrder = []byte{4, 0, 8, 2, 6, 1, 3, 5, 7}
 
 type Game struct {
 	CurrentPlayer  Player
@@ -49,9 +48,67 @@ type Game struct {
 	heuristicStore map[Player]float64
 }
 
+func (g *Game) getAllAvailableMoves() []byte {
+	var moves []byte
+	board := (g.Board[g.CurrentBoard] | (g.Board[g.CurrentBoard] >> 9)) & 0x1FF
+	for _, move := range moveOrder {
+		if board&(0x1<<move) == 0 {
+			moves = append(moves, move)
+		}
+	}
+	return moves
+}
+
+func (g *Game) getFilteredAvailableMoves() []byte {
+	moves := g.getAllAvailableMoves()
+	filtered := g.filterSuddenDeathMoves(moves)
+	filterGreedyMove := g.filterGreedyMove(filtered)
+
+	if len(filterGreedyMove) > 0 {
+		return filterGreedyMove
+	} else if len(filtered) > 0 {
+		return filtered
+	}
+	return moves
+}
+
+func (g *Game) filterGreedyMove(moves []byte) []byte {
+	offset := 0
+	if g.CurrentPlayer == Player2 {
+		offset = 9
+	}
+
+	closeWinning := []byte{}
+	for _, move := range moves {
+		if checkCloseWinningSequenceMove(move, (g.Board[g.CurrentBoard]>>offset)&0x1FF, (g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF) {
+			closeWinning = append(closeWinning, move)
+		}
+	}
+	return closeWinning
+}
+
+func (g *Game) filterSuddenDeathMoves(moves []byte) []byte {
+	enemyOffset := 9
+	if g.CurrentPlayer == Player2 {
+		enemyOffset = 0
+	}
+
+	// Check if enemy can win next board if we choose a move
+	var acceptableMoves []byte
+	for _, move := range moves {
+		// check if the enemy has any
+		board := ((g.Board[move] >> 9) | g.Board[move]) & 0x1FF
+		if checkCloseWinningSequence((g.Board[move]>>enemyOffset)&0x1FF, board) == 0 {
+			acceptableMoves = append(acceptableMoves, move)
+		}
+	}
+	return acceptableMoves
+}
+
 //Len returns the number of actions to consider.
 func (g *Game) Len() int {
-	return int(boardLength - bitCount((g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF))
+	return len(g.getFilteredAvailableMoves())
+	//return int(boardLength - bitCount((g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF))
 }
 
 func (g *Game) GreedyMove() int {
@@ -84,7 +141,7 @@ func (g *Game) HeuristicPlayer(player Player) float64 {
 
 	// Win in center board (+10)
 	if ((g.overallBoard >> (offset + 4)) & 0x1) > 0 {
-		score += 8
+		score += 10
 	}
 
 	// Corner boards (+3)
@@ -106,7 +163,7 @@ func (g *Game) HeuristicPlayer(player Player) float64 {
 	// Sequence of two winning board which can be continued for a winning sequence (+2)
 	for i := 0; i < boardLength; i++ {
 		board := ((g.Board[i] >> 9) | g.Board[i]) & 0x1FF
-		score += checkCloseWinningSequence((g.Board[i]>>9)&0x1FF, board) * 1
+		score += checkCloseWinningSequence((g.Board[i]>>offset)&0x1FF, board) * 1
 	}
 
 	// Overall win/loss
@@ -114,6 +171,7 @@ func (g *Game) HeuristicPlayer(player Player) float64 {
 		score += 10
 	}
 
+	g.heuristicStore[player] = float64(score)
 	return float64(score)
 }
 
@@ -132,17 +190,22 @@ func (g *Game) Heuristic() map[Player]float64 {
 }
 
 func (g *Game) GetMove(i int) (int, error) {
-	count := 0
-	board := (g.Board[g.CurrentBoard] | (g.Board[g.CurrentBoard] >> 9)) & 0x1FF
-	for _, move := range moveOrder {
-		if board&(0x1<<move) == 0 {
-			if i == count {
-				return move, nil
+	moves := g.getFilteredAvailableMoves()
+	return int(moves[i]), nil
+
+	/*
+		count := 0
+		board := (g.Board[g.CurrentBoard] | (g.Board[g.CurrentBoard] >> 9)) & 0x1FF
+		for _, move := range moveOrder {
+			if board&(0x1<<move) == 0 {
+				if i == count {
+					return int(move), nil
+				}
+				count += 1
 			}
-			count += 1
 		}
-	}
-	return 0, errors.New("could not find move")
+		return 0, errors.New("could not find move")
+	*/
 }
 
 //ApplyAction applies the ith action (0-indexed) to the game state,
@@ -203,10 +266,11 @@ func (g *Game) Winners() []Player {
 
 func NewGame() *Game {
 	return &Game{
-		CurrentPlayer: Player1,
-		Board:         [boardLength]uint32{},
-		CurrentBoard:  0x4,
-		overallBoard:  0x0,
+		CurrentPlayer:  Player1,
+		Board:          [boardLength]uint32{},
+		CurrentBoard:   0x4,
+		overallBoard:   0x0,
+		heuristicStore: map[Player]float64{},
 	}
 }
 

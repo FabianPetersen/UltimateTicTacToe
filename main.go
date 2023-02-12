@@ -97,7 +97,7 @@ func (g *GameEngine) getBotMove() int {
 	botMove := 0
 	switch activeBotAlgorithm {
 	case MTD_F:
-		mtDriver := mtd.NewMTD(g.game, 6)
+		mtDriver := mtd.NewMTD(g.game, 7)
 		botMove = mtDriver.MTD_F()
 
 	case MINIMAX:
@@ -112,7 +112,10 @@ func (g *GameEngine) getBotMove() int {
 		botMove, _ = mcts.BestAction()
 	}
 
-	actualMove, _ := g.game.GetMove(botMove)
+	actualMove, err := g.game.GetMove(botMove)
+	if err != nil {
+		fmt.Println("Error", err.Error())
+	}
 	return actualMove
 }
 
