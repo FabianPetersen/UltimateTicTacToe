@@ -42,7 +42,7 @@ const (
 	MTD_F                   BOT_ALGORITHM = 2
 )
 
-var activeBotAlgorithm = MTD_F
+var activeBotAlgorithm = MINIMAX
 
 const windowSizeW = 320 * 2
 const windowSizeH = 320 * 2
@@ -191,6 +191,13 @@ func (g *GameEngine) DrawSingleGameEngine(screen *ebiten.Image, boardX float64, 
 			ebitenutil.DrawRect(screen, startX+width/4, startY+height/4, width/2, height/2, rgba)
 		}
 	}
+
+	p1Score := g.game.HeuristicBoard(Game.Player1, g.game.Board[boardIndex])
+	p2Score := g.game.HeuristicBoard(Game.Player2, g.game.Board[boardIndex])
+	p1ScoreString := fmt.Sprintf("Player 1: %.2f", p1Score)
+	p2ScoreString := fmt.Sprintf("Player 2: %.2f", p2Score)
+	ebitenutil.DebugPrintAt(screen, p1ScoreString, int(startX+2), int(startY+5))
+	ebitenutil.DebugPrintAt(screen, p2ScoreString, int(startX+2), int(startY+20))
 }
 
 func (g *GameEngine) Draw(screen *ebiten.Image) {
@@ -208,6 +215,10 @@ func (g *GameEngine) Draw(screen *ebiten.Image) {
 	} else if len(winners) == 2 {
 		ebitenutil.DebugPrintAt(screen, "Draw", windowSizeW/2, windowSizeH/2)
 	}
+
+	score := g.game.Heuristic()
+	totalScoreString := fmt.Sprintf("Total Player 1: %.2f, Total Player 2: %.2f", score[Game.Player1], score[Game.Player2])
+	ebitenutil.DebugPrintAt(screen, totalScoreString, windowSizeW/2-int(float64(len(totalScoreString))*3.25), windowSizeH-20)
 }
 
 func (g *GameEngine) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

@@ -4,15 +4,38 @@ func checkCompleted(test uint32) bool {
 	return (test&0x7) == 0x7 || (test&0x38) == 0x38 || (test&0x1C0) == 0x1C0 || (test&0x49) == 0x49 || (test&0x92) == 0x92 || (test&0x124) == 0x124 || (test&0x111) == 0x111 || (test&0x54) == 0x54
 }
 
-func checkCloseWinningSequence(player uint32, board uint32) uint32 {
+func checkBlockSequence(player uint32, enemy uint32) uint32 {
 	var i byte = 0
-	var count uint32 = 0
 	for ; i < boardLength; i++ {
-		if checkCloseWinningSequenceMove(i, player, board) {
-			count += 1
+		if checkBlockSequenceMove(i, player, enemy) {
+			return 1
 		}
 	}
-	return count
+
+	return 0
+}
+
+func checkCloseWinningSequence(player uint32, board uint32) uint32 {
+	var i byte = 0
+	for ; i < boardLength; i++ {
+		if checkCloseWinningSequenceMove(i, player, board) {
+			return 1
+		}
+	}
+	return 0
+}
+
+func checkBlockSequenceMove(i byte, player uint32, enemy uint32) bool {
+	// IF enemy makes the move, it is a win
+	enemy |= 0x1 << i
+	if checkCompleted(enemy) {
+		// Move already occupied
+		if player&(0x1<<i) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func checkCloseWinningSequenceMove(i byte, player uint32, board uint32) bool {

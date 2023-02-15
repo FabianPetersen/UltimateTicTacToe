@@ -1,6 +1,7 @@
 package Game
 
 import (
+	"errors"
 	"math/rand"
 	"time"
 )
@@ -33,7 +34,6 @@ const Player1 Player = 1
 const Player2 Player = 2
 const boardLength = 9
 
-var hash = make([]byte, (boardLength*4)+2)
 var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 
 /*	Middle -> corner -> other */
@@ -61,6 +61,7 @@ func (g *Game) getAllAvailableMoves() []byte {
 
 //Len returns the number of actions to consider.
 func (g *Game) Len() int {
+	//return int(boardLength - bitCount((g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF))
 	return len(g.getFilteredAvailableMoves())
 }
 
@@ -79,8 +80,21 @@ func (g *Game) GreedyMove() int {
 }
 
 func (g *Game) GetMove(i int) (int, error) {
-	moves := g.getFilteredAvailableMoves()
-	return int(moves[i]), nil
+	count := 0
+	board := (g.Board[g.CurrentBoard] | (g.Board[g.CurrentBoard] >> 9)) & 0x1FF
+	for _, move := range moveOrder {
+		if board&(0x1<<move) == 0 {
+			if i == count {
+				return int(move), nil
+			}
+			count += 1
+		}
+	}
+	return 0, errors.New("could not find move")
+	/*
+		moves := g.getFilteredAvailableMoves()
+		return int(moves[i]), nil
+	*/
 }
 
 //ApplyAction applies the ith action (0-indexed) to the game state,
@@ -106,17 +120,22 @@ func (g *Game) ApplyActionModify(i int) {
 //the directed acyclic graph will become a directed cyclic graph,
 //which this MCTS implementation cannot handle properly.
 func (g *Game) Hash() GameHash {
-	h := 0
+	var hash = [10]uint32{}
+	copy(hash[:], g.Board[:])
+	var last = uint32(g.CurrentPlayer)
+	last |= uint32(g.Turn) << 9
+	last |= uint32(g.CurrentBoard) << 9
+	return GameHash(hash)
+}
+
+func (g *Game) Compare(c *Game) bool {
 	for i := 0; i < boardLength; i++ {
-		h = 4 * i
-		hash[h+0] = byte(g.Board[i])
-		hash[h+1] = byte(g.Board[i] >> 8)
-		hash[h+2] = byte(g.Board[i] >> 16)
-		hash[h+3] = byte(g.Board[i] >> 24)
+		if g.Board[i] != c.Board[i] {
+			return false
+		}
 	}
-	hash[36] = byte(g.CurrentPlayer)
-	hash[37] = g.Turn
-	return GameHash(XXH3_64bits(hash))
+
+	return g.CurrentBoard == c.CurrentBoard && g.CurrentPlayer == c.CurrentPlayer
 }
 
 //Player returns the player that can take the next action
@@ -180,6 +199,7 @@ func (g *Game) MakeMove(boardIndex byte, pos int) {
 			for i := byte(0); i < boardLength; i++ {
 				if len(g.Winner(i)) == 0 {
 					g.CurrentBoard = i
+					break
 				}
 			}
 		}
@@ -223,4 +243,13 @@ func (g *Game) Winner(boardIndex byte) []Player {
 	}
 
 	return []Player{}
+}
+
+func (g *Game) MovesMade() uint32 {
+	// Count how far the game has progressed
+	var movesPlayed uint32 = 0
+	for i := 0; i < 9; i++ {
+		movesPlayed += bitCount(g.Board[i] & 0x3FFFF)
+	}
+	return movesPlayed
 }

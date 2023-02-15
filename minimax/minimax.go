@@ -1,6 +1,7 @@
 package minimax
 
 import (
+	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"math"
 )
@@ -142,18 +143,42 @@ func (n *Node) Search(alpha float64, beta float64, depth byte, maxPlayer Game.Pl
 
 type Minimax struct {
 	root  *Node
-	depth byte
+	Depth byte
 }
 
 func NewMinimax(state *Game.Game) *Minimax {
 	return &Minimax{root: &Node{
 		State:  state.Copy(),
 		cached: false,
-	}, depth: 5}
+	}, Depth: 0}
 }
 
 func (minimax *Minimax) Search() int {
+	if minimax.Depth == 0 {
+		minimax.setDepth()
+	}
+
 	TranspositionTable.Reset()
-	_, bestMove := minimax.root.Search(math.Inf(-1), math.Inf(1), minimax.depth, minimax.root.State.CurrentPlayer)
+	_, bestMove := minimax.root.Search(math.Inf(-1), math.Inf(1), minimax.Depth, minimax.root.State.CurrentPlayer)
+	fmt.Printf("Stored nodes, %d Depth %d \n", len(TranspositionTable.nodeStore), minimax.Depth)
 	return bestMove
+}
+
+func (minimax *Minimax) setDepth() {
+	movesPlayed := minimax.root.State.MovesMade()
+	if movesPlayed < 10 {
+		minimax.Depth = 8
+	} else if movesPlayed < 20 {
+		minimax.Depth = 9
+	} else if movesPlayed < 26 {
+		minimax.Depth = 10
+	} else if movesPlayed < 32 {
+		minimax.Depth = 11
+	} else if movesPlayed < 34 {
+		minimax.Depth = 12
+	} else if movesPlayed < 38 {
+		minimax.Depth = 13
+	} else {
+		minimax.Depth = 15
+	}
 }
