@@ -1,5 +1,16 @@
 package Game
 
+func (g *Game) getAllAvailableMoves() []byte {
+	var moves []byte
+	board := (g.Board[g.CurrentBoard] | (g.Board[g.CurrentBoard] >> 9)) & 0x1FF
+	for _, move := range moveOrder {
+		if board&(0x1<<move) == 0 {
+			moves = append(moves, move)
+		}
+	}
+	return moves
+}
+
 func (g *Game) getFilteredAvailableMoves() []byte {
 	moves := g.getAllAvailableMoves()
 	/*

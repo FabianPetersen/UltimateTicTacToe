@@ -46,37 +46,15 @@ type Game struct {
 	overallBoard   uint32
 	Turn           byte // Should perhaps be an int in other games
 	heuristicStore map[Player]float64
-}
 
-func (g *Game) getAllAvailableMoves() []byte {
-	var moves []byte
-	board := (g.Board[g.CurrentBoard] | (g.Board[g.CurrentBoard] >> 9)) & 0x1FF
-	for _, move := range moveOrder {
-		if board&(0x1<<move) == 0 {
-			moves = append(moves, move)
-		}
-	}
-	return moves
+	lastBoard byte
+	lastPos   int
 }
 
 //Len returns the number of actions to consider.
 func (g *Game) Len() int {
 	//return int(boardLength - bitCount((g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF))
 	return len(g.getFilteredAvailableMoves())
-}
-
-func (g *Game) GreedyMove() int {
-	length := g.Len()
-	var i = 0
-	for i = 0; i < length; i++ {
-		move, _ := g.GetMove(i)
-		if g.CurrentPlayer == Player1 && checkCloseWinningSequenceMove(byte(move), g.Board[i]&0x1FF, (g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF) {
-			return i
-		} else if g.CurrentPlayer == Player2 && checkCloseWinningSequenceMove(byte(move), (g.Board[i]>>9)&0x1FF, (g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF) {
-			return i
-		}
-	}
-	return randSource.Intn(length)
 }
 
 func (g *Game) GetMove(i int) (int, error) {
@@ -177,8 +155,29 @@ func (g *Game) Copy() *Game {
 	return newG
 }
 
+func (g *Game) UnMakeMove() {
+	g.heuristicStore = map[Player]float64{}
+
+	// Unset move
+	if g.CurrentPlayer == Player2 {
+		g.Board[g.lastBoard] &^= 1 << g.lastPos
+		g.CurrentPlayer = Player1
+
+	} else {
+		g.Board[g.lastBoard] &^= 1 << (g.lastPos + 9)
+		g.CurrentPlayer = Player2
+	}
+
+	// Reset win
+	g.Board[g.lastBoard] &^= 0x80000000 | 0x40000000 | 0x20000000
+	g.Board[g.lastBoard] &^= (0x1 << g.lastBoard) | (0x1 << (g.lastBoard + 9)) | (0x1 << (g.lastBoard + 18))
+}
+
 func (g *Game) MakeMove(boardIndex byte, pos int) {
 	g.heuristicStore = map[Player]float64{}
+	g.lastBoard = g.CurrentBoard
+	g.lastPos = pos
+
 	// Check if the board is empty
 	if boardIndex == g.CurrentBoard && g.Board[boardIndex]&(1<<pos) == 0 && g.Board[boardIndex]&(1<<(pos+9)) == 0 {
 		if g.CurrentPlayer == Player1 {
@@ -209,47 +208,4 @@ func (g *Game) MakeMove(boardIndex byte, pos int) {
 
 func (g *Game) IsBoardFinished(pos int) bool {
 	return !((g.overallBoard>>pos)&0x1 == 0 && (g.overallBoard>>(pos+9))&0x1 == 0 && (g.overallBoard>>(pos+18))&0x1 == 0)
-}
-
-func (g *Game) OverallWinner() []Player {
-	if checkCompleted(g.overallBoard & 0x1FF) {
-		return []Player{Player1}
-	} else if checkCompleted((g.overallBoard >> 9) & 0x1FF) {
-		return []Player{Player2}
-	} else if ((g.overallBoard>>18)|(g.overallBoard>>9)|g.overallBoard)&0x1FF == 0x1FF {
-		return []Player{Player1, Player2}
-	}
-	return []Player{}
-}
-
-func (g *Game) Winner(boardIndex byte) []Player {
-	// Player 1
-	if g.Board[boardIndex]&0x80000000 > 0 || checkCompleted(g.Board[boardIndex]&0x1FF) {
-		g.Board[boardIndex] |= 0x80000000
-		g.overallBoard |= 0x1 << boardIndex
-		return []Player{Player1}
-
-		// Player 2
-	} else if g.Board[boardIndex]&0x40000000 > 0 || checkCompleted((g.Board[boardIndex]>>9)&0x1FF) {
-		g.Board[boardIndex] |= 0x40000000
-		g.overallBoard |= 1 << (boardIndex + 9)
-		return []Player{Player2}
-
-		// Draw
-	} else if g.Board[boardIndex]&0x20000000 > 0 || (g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF == 0x1FF {
-		g.Board[boardIndex] |= 0x20000000
-		g.overallBoard |= 1 << (boardIndex + 18)
-		return []Player{Player1, Player2}
-	}
-
-	return []Player{}
-}
-
-func (g *Game) MovesMade() uint32 {
-	// Count how far the game has progressed
-	var movesPlayed uint32 = 0
-	for i := 0; i < 9; i++ {
-		movesPlayed += bitCount(g.Board[i] & 0x3FFFF)
-	}
-	return movesPlayed
 }

@@ -168,9 +168,9 @@ func (minimax *Minimax) setDepth() {
 	movesPlayed := minimax.root.State.MovesMade()
 	if movesPlayed < 10 {
 		minimax.Depth = 8
-	} else if movesPlayed < 20 {
+	} else if movesPlayed < 16 {
 		minimax.Depth = 9
-	} else if movesPlayed < 26 {
+	} else if movesPlayed < 22 {
 		minimax.Depth = 10
 	} else if movesPlayed < 32 {
 		minimax.Depth = 11
