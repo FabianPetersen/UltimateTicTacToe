@@ -36,8 +36,11 @@ const boardLength = 9
 
 var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 
+/*	corner -> middle -> other */
+var moveOrder = []byte{0, 8, 2, 6, 4, 1, 3, 5, 7}
+
 /*	Middle -> corner -> other */
-var moveOrder = []byte{4, 0, 8, 2, 6, 1, 3, 5, 7}
+//var moveOrder = []byte{4, 0, 8, 2, 6, 1, 3, 5, 7}
 
 type Game struct {
 	CurrentPlayer  Player

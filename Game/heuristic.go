@@ -55,10 +55,19 @@ func (g *Game) HeuristicBoard(player Player, board uint32) float64 {
 				score += 9
 			}
 
-			// Block move score
-			if checkBlockSequence(playerBoard, enemyBoard) > 0 {
-				score += 6
+			// Check 2 joint items
+			if checkCloseWinningSequence(enemyBoard, jointBoard) > 0 {
+				score -= 5
 			}
+
+			// Block move score
+			//if checkBlockSequence(playerBoard, enemyBoard) > 0 {
+			//	score += 6
+			//}
+			// The enemy has won a square
+		} else {
+			// Give a reward for enemy moves
+			score -= 10 - float64(bitCount(enemyBoard))*0.25
 		}
 	}
 
