@@ -10,6 +10,10 @@ type Storage struct {
 	nodeStore map[Game.GameHash]*Node
 }
 
+func (storage *Storage) Count() int {
+	return len(storage.nodeStore)
+}
+
 func (storage *Storage) Get(hash Game.GameHash) (*Node, bool) {
 	node, exists := storage.nodeStore[hash]
 	return node, exists
@@ -165,20 +169,24 @@ func (minimax *Minimax) Search() int {
 }
 
 func (minimax *Minimax) setDepth() {
-	movesPlayed := minimax.root.State.MovesMade()
-	if movesPlayed < 10 {
-		minimax.Depth = 8
+	minimax.Depth = GetDepth(minimax.root.State)
+}
+
+func GetDepth(g *Game.Game) byte {
+	movesPlayed := g.MovesMade()
+	if movesPlayed < 4 {
+		return 8
 	} else if movesPlayed < 16 {
-		minimax.Depth = 9
+		return 9
 	} else if movesPlayed < 22 {
-		minimax.Depth = 10
+		return 10
 	} else if movesPlayed < 32 {
-		minimax.Depth = 11
+		return 11
 	} else if movesPlayed < 34 {
-		minimax.Depth = 12
+		return 12
 	} else if movesPlayed < 38 {
-		minimax.Depth = 13
+		return 14
 	} else {
-		minimax.Depth = 15
+		return 15
 	}
 }

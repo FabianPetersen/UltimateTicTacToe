@@ -12,21 +12,30 @@ import (
  First 9 byte = (0 - 8)
 
 	// 0 1 2
-	// 3 4 5
-	// 6 7 8
+    // 7 8 3
+    // 6 5 4
 
-	// 0-1-2 = 0x7
-	// 3-4-5 = 0x38
-	// 6-7-8 = 0x1C0
+	0 1 2
+	7 8 3
+    6 5 4
 
-	// 0-3-6 = 0x49
-	// 1-4-7 = 0x92
-	// 2-5-8 = 0x124
+	0 7 6
+	1 8 5
+ 	2 3 4
 
-	// 0-4-8 = 0x111
-	// 2-4-6 = 0x54
+	0 8 4
+    2 8 6
+
+	7
+	188
+	70
+	c1
+	122
+	1c
+	111
+	144
 */
-//Player is an id for the player
+
 type Player byte
 type GameHash interface{}
 
@@ -36,11 +45,8 @@ const boardLength = 9
 
 var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 
-/*	corner -> middle -> other */
-var moveOrder = []byte{0, 8, 2, 6, 4, 1, 3, 5, 7}
-
-/*	Middle -> corner -> other */
-//var moveOrder = []byte{4, 0, 8, 2, 6, 1, 3, 5, 7}
+/*	corner -> middle -> side */
+var moveOrder = []byte{0, 4, 2, 6, 8, 1, 3, 5, 7}
 
 type Game struct {
 	CurrentPlayer  Player
@@ -56,8 +62,8 @@ type Game struct {
 
 //Len returns the number of actions to consider.
 func (g *Game) Len() int {
-	//return int(boardLength - bitCount((g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF))
-	return len(g.getFilteredAvailableMoves())
+	return int(boardLength - bitCount((g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF))
+	//return len(g.getFilteredAvailableMoves())
 }
 
 func (g *Game) GetMove(i int) (int, error) {
@@ -143,7 +149,7 @@ func NewGame() *Game {
 	return &Game{
 		CurrentPlayer:  Player1,
 		Board:          [boardLength]uint32{},
-		CurrentBoard:   0x4,
+		CurrentBoard:   0x8,
 		overallBoard:   0x0,
 		heuristicStore: map[Player]float64{},
 	}

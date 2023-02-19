@@ -1,7 +1,14 @@
 package Game
 
-var boardRating = []float64{1.4, 1, 1.4, 1, 1.75, 1, 1.4, 1, 1.4}
-var posRating = []float64{0.2, 0.17, 0.2, 0.17, 0.22, 0.17, 0.2, 0.17, 0.2}
+const boardCornerRating = 1.4
+const boardSideRating = 1
+const boardMiddleRating = 1.75
+const posCornerRating = 0.2
+const posSideRating = 0.17
+const posMiddleRating = 0.22
+
+var boardRating = []float64{boardCornerRating, boardSideRating, boardCornerRating, boardSideRating, boardCornerRating, boardSideRating, boardCornerRating, boardSideRating, boardMiddleRating}
+var posRating = []float64{posCornerRating, posSideRating, posCornerRating, posSideRating, posCornerRating, posSideRating, posCornerRating, posSideRating, posMiddleRating}
 var boardHeuristicCacheP1 = map[uint32]float64{}
 var boardHeuristicCacheP2 = map[uint32]float64{}
 
@@ -12,7 +19,7 @@ func (g *Game) getOffset(player Player) (int, int) {
 	return 9, 0
 }
 
-func (g *Game) HeuristicBoard(player Player, board uint32) float64 {
+func (g *Game) HeuristicBoard(player Player, board uint32, isOverallBoard bool) float64 {
 	if player == Player1 {
 		if score, ok := boardHeuristicCacheP1[board]; ok {
 			return score
@@ -33,12 +40,20 @@ func (g *Game) HeuristicBoard(player Player, board uint32) float64 {
 	if checkCompleted(playerBoard) {
 		// Give a discount on the amount of moves made in the board
 		// To incentivise a lower number of total moves
-		score += 24 - float64(bitCount(playerBoard))*0.25
+		if !isOverallBoard {
+			score += 24 - float64(bitCount(playerBoard))*0.25
+		} else {
+			score += 24
+		}
 
 		// The board is a draw
 	} else if jointBoard == 0x1FF && !checkCompleted(enemyBoard) {
-		// Give a reward for the amount of wasted enemy moves
-		score += float64(bitCount(enemyBoard)) * 0.12
+		// Give a reward for the amount of wasted enemy moves (or won moves
+		if !isOverallBoard {
+			score += float64(bitCount(enemyBoard)) * 0.12
+		} else {
+			score += float64(bitCount(playerBoard)) * 0.12
+		}
 
 	} else {
 		// Calculate pos for items
@@ -102,14 +117,14 @@ func (g *Game) HeuristicPlayer(player Player) float64 {
 	}
 
 	for i := 0; i < boardLength; i++ {
-		boardScore := g.HeuristicBoard(player, g.Board[i])
+		boardScore := g.HeuristicBoard(player, g.Board[i], false)
 		score += boardScore * 1.5 * boardRating[i]
-		if i == int(g.CurrentBoard) {
+		/*if i == int(g.CurrentBoard) {
 			score += boardScore * boardRating[i]
-		}
+		}*/
 	}
 
-	score += g.HeuristicBoard(player, g.overallBoard) * 150
+	score += g.HeuristicBoard(player, g.overallBoard, true) * 150
 
 	g.heuristicStore[player] = score
 	return score
