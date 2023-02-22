@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-func TestSpeedMinimax(t *testing.T) {
+func TestSpeedMinimaxIterative(t *testing.T) {
 	mm := minimax.NewMinimax(game)
 	mm.Depth = 10
-	move := mm.Search()
+	move := mm.SearchIterative()
 	fmt.Println(move)
 }

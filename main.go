@@ -52,6 +52,7 @@ type BOT_ALGORITHM byte
 
 const (
 	MINIMAX                 BOT_ALGORITHM = 0
+	MINIMAX_ITERATIVE       BOT_ALGORITHM = 4
 	MONTE_CARLO_TREE_SEARCH BOT_ALGORITHM = 1
 	MTD_F                   BOT_ALGORITHM = 2
 	BNS                     BOT_ALGORITHM = 3
@@ -115,6 +116,10 @@ func (g *GameEngine) getBotMove() int {
 	case MINIMAX:
 		mini := minimax.NewMinimax(g.game)
 		botMove = mini.Search()
+
+	case MINIMAX_ITERATIVE:
+		mini := minimax.NewMinimax(g.game)
+		botMove = mini.SearchIterative()
 
 	case BNS:
 		botMove = bns.IterativeDeepening(&minimax.Node{
@@ -234,8 +239,7 @@ func (g *GameEngine) Draw(screen *ebiten.Image) {
 		ebitenutil.DebugPrintAt(screen, "Draw", windowSizeW/2-int(float64(len("Draw"))*3.25), windowSizeH/2)
 	}
 
-	score := g.game.Heuristic()
-	totalScoreString := fmt.Sprintf("Total Player 1: %.2f, Total Player 2: %.2f", score[Game.Player1], score[Game.Player2])
+	totalScoreString := fmt.Sprintf("Total Player 1: %.2f, Total Player 2: %.2f", g.game.HeuristicPlayer(Game.Player1), g.game.HeuristicPlayer(Game.Player2))
 	ebitenutil.DebugPrintAt(screen, totalScoreString, windowSizeW/2-int(float64(len(totalScoreString))*3.25), windowSizeH-20)
 }
 

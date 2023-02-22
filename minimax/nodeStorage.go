@@ -16,9 +16,7 @@ func (storage *Storage) Get(hash Game.GameHash) (*Node, bool) {
 }
 
 func (storage *Storage) Set(node *Node) {
-	var key = [9]uint32{}
-	copy(key[:], (*node.State.Hash())[:])
-	storage.nodeStore[key] = node
+	storage.nodeStore[*node.State.Hash()] = node
 }
 
 func (storage *Storage) Reset() {

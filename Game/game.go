@@ -55,6 +55,7 @@ func (g *Game) GetMove(i int) (int, error) {
 			count += 1
 		}
 	}
+	panic(errors.New("data"))
 	return 0, errors.New("could not find move")
 	/*
 		moves := g.getFilteredAvailableMoves()

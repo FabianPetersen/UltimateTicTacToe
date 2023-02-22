@@ -14,9 +14,7 @@ func (storage *Storage) Get(hash GameHash) (float64, bool) {
 }
 
 func (storage *Storage) Set(hash GameHash, score float64) {
-	var key = [9]uint32{}
-	copy(key[:], (*hash)[:])
-	storage.heuristicStore[key] = score
+	storage.heuristicStore[*hash] = score
 }
 
 func (storage *Storage) Reset() {
