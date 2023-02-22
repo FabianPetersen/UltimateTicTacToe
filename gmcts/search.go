@@ -1,5 +1,6 @@
 package gmcts
 
+/*
 import (
 	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
@@ -164,3 +165,4 @@ func (n *node) defaultPolicy() []Game.Player {
 	}
 	return game.Winners()
 }
+*/

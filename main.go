@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"github.com/FabianPetersen/UltimateTicTacToe/bns"
-	"github.com/FabianPetersen/UltimateTicTacToe/gmcts"
 	"github.com/FabianPetersen/UltimateTicTacToe/minimax"
 	"github.com/FabianPetersen/UltimateTicTacToe/mtd"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -105,7 +104,7 @@ func (g *GameEngine) Update() error {
 }
 
 func (g *GameEngine) getBotMove() int {
-	timeToSearch := 1000 * time.Millisecond
+	// timeToSearch := 1000 * time.Millisecond
 	botMove := 0
 	switch activeBotAlgorithm {
 	case MTD_F:
@@ -118,16 +117,18 @@ func (g *GameEngine) getBotMove() int {
 		botMove = mini.Search()
 
 	case BNS:
-		botMove = bns.BestNodeSearch(&minimax.Node{
+		botMove = bns.IterativeDeepening(&minimax.Node{
 			State: g.game.Copy(),
-		})
+		}, minimax.GetDepth(g.game))
 
-	case MONTE_CARLO_TREE_SEARCH:
-		mcts := gmcts.NewMCTS(g.game)
-		tree := mcts.SpawnTree(gmcts.ROBUST_CHILD, gmcts.SMITSIMAX)
-		tree.SearchTime(timeToSearch)
-		mcts.AddTree(tree)
-		botMove, _ = mcts.BestAction()
+		/*
+			case MONTE_CARLO_TREE_SEARCH:
+				mcts := gmcts.NewMCTS(g.game)
+				tree := mcts.SpawnTree(gmcts.ROBUST_CHILD, gmcts.SMITSIMAX)
+				tree.SearchTime(timeToSearch)
+				mcts.AddTree(tree)
+				botMove, _ = mcts.BestAction()
+		*/
 	}
 
 	actualMove, err := g.game.GetMove(botMove)

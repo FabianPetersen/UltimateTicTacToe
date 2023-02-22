@@ -14,30 +14,10 @@ import (
 	// 0 1 2
     // 7 8 3
     // 6 5 4
-
-	0 1 2
-	7 8 3
-    6 5 4
-
-	0 7 6
-	1 8 5
- 	2 3 4
-
-	0 8 4
-    2 8 6
-
-	7
-	188
-	70
-	c1
-	122
-	1c
-	111
-	144
 */
 
 type Player byte
-type GameHash interface{}
+type GameHash *[9]uint32
 
 const Player1 Player = 1
 const Player2 Player = 2
@@ -49,12 +29,10 @@ var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 var moveOrder = []byte{0, 4, 2, 6, 8, 1, 3, 5, 7}
 
 type Game struct {
-	CurrentPlayer  Player
-	CurrentBoard   byte
-	Board          [boardLength]uint32
-	overallBoard   uint32
-	Turn           byte // Should perhaps be an int in other games
-	heuristicStore map[Player]float64
+	CurrentPlayer Player
+	CurrentBoard  byte
+	Board         [boardLength]uint32
+	overallBoard  uint32
 
 	lastBoard byte
 	lastPos   int
@@ -107,12 +85,7 @@ func (g *Game) ApplyActionModify(i int) {
 //the directed acyclic graph will become a directed cyclic graph,
 //which this MCTS implementation cannot handle properly.
 func (g *Game) Hash() GameHash {
-	var hash = [10]uint32{}
-	copy(hash[:], g.Board[:])
-	var last = uint32(g.CurrentPlayer)
-	last |= uint32(g.Turn) << 9
-	last |= uint32(g.CurrentBoard) << 9
-	return GameHash(hash)
+	return &g.Board
 }
 
 func (g *Game) Compare(c *Game) bool {
@@ -147,11 +120,10 @@ func (g *Game) Winners() []Player {
 
 func NewGame() *Game {
 	return &Game{
-		CurrentPlayer:  Player1,
-		Board:          [boardLength]uint32{},
-		CurrentBoard:   0x8,
-		overallBoard:   0x0,
-		heuristicStore: map[Player]float64{},
+		CurrentPlayer: Player1,
+		Board:         [boardLength]uint32{},
+		CurrentBoard:  0x8,
+		overallBoard:  0x0,
 	}
 }
 
@@ -164,26 +136,50 @@ func (g *Game) Copy() *Game {
 	return newG
 }
 
-func (g *Game) UnMakeMove() {
-	g.heuristicStore = map[Player]float64{}
+func (g *Game) Rotate() {
+	g.Board[2], g.Board[3], g.Board[4], g.Board[5], g.Board[6], g.Board[7], g.Board[0], g.Board[1] = g.Board[0], g.Board[1], g.Board[2], g.Board[3], g.Board[4], g.Board[5], g.Board[6], g.Board[7]
+	for i := 0; i < boardLength; i++ {
+		g.Board[i] = g.Board[i]&0xe0020100 | rotl2(g.Board[i]) | (rotl2(g.Board[i]>>9) << 9)
+	}
+	g.overallBoard = rotl2(g.overallBoard) | (rotl2(g.overallBoard>>9) << 9) | (rotl2(g.overallBoard>>18) << 18)
 
+	// Change current board
+	if g.CurrentBoard != 8 {
+		g.CurrentBoard = (g.CurrentBoard + 2) % 8
+	}
+}
+
+func (g *Game) Invert() {
+	for i := 0; i < boardLength; i++ {
+		g.Board[i] = g.Board[i]&0x80000000 | (g.Board[i]&0x40000000>>1)&0x20000000 | (g.Board[i]&0x20000000<<1)&0x40000000 | (g.Board[i]&0x1FF)<<9 | (g.Board[i]>>9)&0x1FF
+	}
+	g.overallBoard = g.overallBoard&0x7FC0000 | (g.overallBoard&0x1FF)<<9 | (g.overallBoard>>9)&0x1FF
+
+	// Change player
+	if g.CurrentPlayer == Player1 {
+		g.CurrentPlayer = Player2
+	} else {
+		g.CurrentPlayer = Player1
+	}
+}
+
+func (g *Game) UnMakeMove() {
 	// Unset move
 	if g.CurrentPlayer == Player2 {
-		g.Board[g.lastBoard] &^= 1 << g.lastPos
+		g.Board[g.lastBoard] &^= 1<<g.lastPos | 0x80000000 | 0x40000000 | 0x20000000
 		g.CurrentPlayer = Player1
 
 	} else {
-		g.Board[g.lastBoard] &^= 1 << (g.lastPos + 9)
+		g.Board[g.lastBoard] &^= 1<<(g.lastPos+9) | 0x80000000 | 0x40000000 | 0x20000000
 		g.CurrentPlayer = Player2
 	}
 
 	// Reset win
-	g.Board[g.lastBoard] &^= 0x80000000 | 0x40000000 | 0x20000000
-	g.Board[g.lastBoard] &^= (0x1 << g.lastBoard) | (0x1 << (g.lastBoard + 9)) | (0x1 << (g.lastBoard + 18))
+	g.overallBoard &^= 0x1<<g.lastBoard | 0x1<<(g.lastBoard+9) | 0x1<<(g.lastBoard+18)
+	g.CurrentBoard = g.lastBoard
 }
 
 func (g *Game) MakeMove(boardIndex byte, pos int) {
-	g.heuristicStore = map[Player]float64{}
 	g.lastBoard = g.CurrentBoard
 	g.lastPos = pos
 
@@ -211,7 +207,6 @@ func (g *Game) MakeMove(boardIndex byte, pos int) {
 				}
 			}
 		}
-		g.Turn += 1
 	}
 }
 

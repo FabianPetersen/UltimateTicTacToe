@@ -1,10 +1,12 @@
 package gmcts
 
+/*
 import (
 	"errors"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"sync"
 )
+
 
 var (
 	//ErrNoTrees notifies the callee that the MCTS wrapper has recieved to trees to analyze
@@ -105,3 +107,4 @@ func (m *MCTS) BestAction() (int, error) {
 	}
 	return bestAction, nil
 }
+*/

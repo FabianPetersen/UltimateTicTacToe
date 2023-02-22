@@ -6,33 +6,6 @@ import (
 	"math"
 )
 
-type Storage struct {
-	nodeStore map[Game.GameHash]*Node
-}
-
-func (storage *Storage) Count() int {
-	return len(storage.nodeStore)
-}
-
-func (storage *Storage) Get(hash Game.GameHash) (*Node, bool) {
-	node, exists := storage.nodeStore[hash]
-	return node, exists
-}
-
-func (storage *Storage) Set(node *Node) {
-	storage.nodeStore[node.State.Hash()] = node
-}
-
-func (storage *Storage) Reset() {
-	storage.nodeStore = map[Game.GameHash]*Node{}
-}
-
-func NewStorage() Storage {
-	return Storage{
-		nodeStore: map[Game.GameHash]*Node{},
-	}
-}
-
 var TranspositionTable = NewStorage()
 
 type Flag byte
@@ -53,16 +26,45 @@ type Node struct {
 	flag       Flag
 }
 
-func NewNode(state *Game.Game, action int) *Node {
-	cp := state.Copy()
-	cp.ApplyActionModify(action)
+func getRotateFromCache(cp *Game.Game) (*Node, bool) {
+	// Rotate board and check
+	var oldNode *Node = nil
+	var exists bool = false
+	for r := 0; r < 4; r++ {
+		// Check if the board exists in the cache
+		if !exists {
+			if oldNode, exists = TranspositionTable.Get(cp.Hash()); exists {
+				oldNode.cached = true
+			}
+		}
+		cp.Rotate()
+	}
 
-	// Return the old node if exists
-	if oldNode, exists := TranspositionTable.Get(cp.Hash()); exists {
-		oldNode.cached = true
+	return oldNode, exists
+}
+
+func NewNode(state *Game.Game, action int) *Node {
+	state.ApplyActionModify(action)
+
+	// Rotate and invert board to check if it already exists in cache
+	var oldNode *Node = nil
+	var exists bool = false
+	for i := 0; i < 2; i++ {
+		if !exists {
+			oldNode, exists = getRotateFromCache(state)
+		}
+		state.Invert()
+	}
+
+	if exists {
+		state.UnMakeMove()
 		return oldNode
 	}
 
+	cp := state.Copy()
+	state.UnMakeMove()
+
+	// The node has not been found
 	return &Node{
 		State:      cp,
 		lowerBound: math.Inf(-1),
@@ -163,6 +165,7 @@ func (minimax *Minimax) Search() int {
 	}
 
 	TranspositionTable.Reset()
+	Game.HeuristicStorage.Reset()
 	_, bestMove := minimax.root.Search(math.Inf(-1), math.Inf(1), minimax.Depth, minimax.root.State.CurrentPlayer)
 	fmt.Printf("Stored nodes, %d Depth %d \n", len(TranspositionTable.nodeStore), minimax.Depth)
 	return bestMove

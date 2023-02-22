@@ -1,10 +1,6 @@
 package gmcts
 
-import (
-	Game2 "github.com/FabianPetersen/UltimateTicTacToe/Game"
-	"sync"
-)
-
+/*
 type gameState struct {
 	*Game2.Game
 	Game2.GameHash
@@ -55,3 +51,4 @@ const (
 	UCT2      TreePolicy = 0
 	SMITSIMAX TreePolicy = 1
 )
+*/

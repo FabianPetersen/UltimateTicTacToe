@@ -1,6 +1,7 @@
 package bns
 
 import (
+	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/minimax"
 )
 
@@ -28,45 +29,119 @@ function bns(node, α, β) is
 */
 
 func nextGuess(alpha float64, beta float64, subtreeCount int) float64 {
-	count := float64(subtreeCount)
-	return alpha + ((beta - alpha) * (count - 1) / count)
+	/*
+		if alpha <= 0 {
+			beta = math.Min(beta, inf/2)
+		}
+
+		if beta >= 0 {
+			alpha = math.Max(alpha, -inf/2)
+		}
+	*/
+
+	//count := float64(subtreeCount)
+	guess := (alpha + beta) / 2 // * (count - 1) / count // (count-1)/count*math.Abs(beta-math.Abs(alpha))
+	/*
+		if guess == alpha {
+			return guess + 1
+		} else if guess == beta {
+			return guess - 1
+		}
+	*/
+	return guess
 }
 
-func BestNodeSearch(node *minimax.Node) int {
-	trueCount := node.State.Len()
-	subtreeCount := node.State.Len()
+const inf float64 = 8000
 
-	h := node.State.HeuristicPlayer(node.State.CurrentPlayer)
-	alpha, beta := -h, h
-	var depth byte = minimax.GetDepth(node.State) - 2
+/*
+private ICollection<TMove> BestNodeSearch(TPosition position) // TODO: initial guess from previous iteration!
+        {
+            var alpha = -int.MaxValue;
+            var beta = int.MaxValue;
+
+            IList<TMove> candidates = rules.LegalMovesAt(position).ToList();
+
+            while (alpha + 1 < beta && candidates.Count > 1)
+            {
+                int guess = NextGuess(alpha, beta, candidates.Count);
+
+                var newCandidates = new List<TMove>();
+
+                foreach (var move in candidates)
+                {
+                    int value = NullWindowTest(position, move, guess);
+
+                    if (searchTreeManager.IsStopRequested())
+                    {
+                        break;
+                    }
+                    if (value >= guess)
+                    {
+                        newCandidates.Add(move);
+                    }
+                }
+
+                if (searchTreeManager.IsStopRequested())
+                {
+                    break;
+                }
+                if (newCandidates.Count > 0)
+                {
+                    candidates = newCandidates;
+                    alpha = guess;
+                }
+                else
+                {
+                    beta = guess;
+                }
+            }
+
+            return candidates;
+        }
+*/
+
+func BestNodeSearch(node *minimax.Node, test float64, depth byte) int {
+	children := []int{}
+	for i := 0; i < node.State.Len(); i++ {
+		children = append(children, i)
+	}
+
+	alpha, beta := -inf, inf
 	bestMove := 0
-	for true {
-		test := nextGuess(alpha, beta, subtreeCount)
-		betterCount := 0
-		for i := 0; i < trueCount; i++ {
+	for alpha+0.05 < beta && len(children) > 1 {
+		worthyChildren := []int{}
+
+		test = nextGuess(alpha, beta, len(children))
+		for _, i := range children {
 			bestVal, _ := minimax.NewNode(node.State, i).Search(-test, -(test - 1), depth, node.State.CurrentPlayer)
 			if bestVal >= test {
-				betterCount += 1
 				bestMove = i
+				worthyChildren = append(worthyChildren, i)
 			}
 		}
 
-		// All are better
-		if betterCount == subtreeCount {
-			// Reduce beta-value
-			beta = -1
-		}
-
-		if betterCount > 1 {
+		if len(worthyChildren) > 1 {
 			// Reduce nodes
 			alpha = test
-			subtreeCount = betterCount
-		}
+			children = worthyChildren
 
-		if beta-alpha < 2 || betterCount == 1 {
-			break
+			// All are better
+		} else {
+			beta = test
 		}
 	}
+	return bestMove
+}
 
+func IterativeDeepening(node *minimax.Node, maxDepth byte) int {
+	// Start the guess at the current heuristic
+	var firstGuess float64 = node.State.HeuristicPlayer(node.State.CurrentPlayer)
+	bestMove := 0
+	var d byte = 0
+	minimax.TranspositionTable.Reset()
+	for ; d < maxDepth; d++ {
+		bestMove = BestNodeSearch(node, firstGuess, d)
+	}
+	fmt.Printf("Stored nodes, %d Depth %d \n", minimax.TranspositionTable.Count(), maxDepth)
 	return bestMove
 }

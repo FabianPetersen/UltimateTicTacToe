@@ -12,6 +12,8 @@ var posRating = []float64{posCornerRating, posSideRating, posCornerRating, posSi
 var boardHeuristicCacheP1 = map[uint32]float64{}
 var boardHeuristicCacheP2 = map[uint32]float64{}
 
+var HeuristicStorage = NewStorage()
+
 func (g *Game) getOffset(player Player) (int, int) {
 	if player == Player1 {
 		return 0, 9
@@ -75,10 +77,6 @@ func (g *Game) HeuristicBoard(player Player, board uint32, isOverallBoard bool) 
 				score -= 5
 			}
 
-			// Block move score
-			//if checkBlockSequence(playerBoard, enemyBoard) > 0 {
-			//	score += 6
-			//}
 			// The enemy has won a square
 		} else {
 			// Give a reward for enemy moves
@@ -96,8 +94,10 @@ func (g *Game) HeuristicBoard(player Player, board uint32, isOverallBoard bool) 
 
 func (g *Game) HeuristicPlayer(player Player) float64 {
 	// Don't rerun calculation unless needed
-	if score, ok := g.heuristicStore[player]; ok {
-		return score
+	if player == Player2 {
+		if score, ok := HeuristicStorage.Get(g.Hash()); ok {
+			return score
+		}
 	}
 
 	var score float64 = 0
@@ -106,9 +106,8 @@ func (g *Game) HeuristicPlayer(player Player) float64 {
 	if checkCompleted((g.overallBoard >> playerOffset) & 0x1FF) {
 		// Incentivise quicker wins
 		score = 5000 - float64(g.MovesMade())*10
-		g.heuristicStore[player] = score
+		HeuristicStorage.Set(g.Hash(), score)
 		return score
-
 	}
 
 	if checkCompleted((g.overallBoard >> enemyOffset) & 0x1FF) {
@@ -125,8 +124,9 @@ func (g *Game) HeuristicPlayer(player Player) float64 {
 	}
 
 	score += g.HeuristicBoard(player, g.overallBoard, true) * 150
-
-	g.heuristicStore[player] = score
+	if player == Player2 {
+		HeuristicStorage.Set(g.Hash(), score)
+	}
 	return score
 }
 

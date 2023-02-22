@@ -1,5 +1,6 @@
 package gmcts
 
+/*
 import (
 	"context"
 	"time"
@@ -59,19 +60,6 @@ func (t Tree) Nodes() int {
 	return len(t.gameStates)
 }
 
-//MaxDepth returns the maximum depth of this tree.
-//The value can be thought of as the amount of moves ahead
-//this tree searched through.
-func (t Tree) MaxDepth() byte {
-	var maxDepth byte = 0
-	for _, node := range t.gameStates {
-		if node.state.Turn > maxDepth {
-			maxDepth = node.state.Turn
-		}
-	}
-	return maxDepth
-}
-
 func (t *Tree) bestAction() int {
 	root := t.current
 
@@ -99,3 +87,4 @@ func (t *Tree) bestAction() int {
 
 	return bestAction
 }
+*/
