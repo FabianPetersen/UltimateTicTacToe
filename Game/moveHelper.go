@@ -30,7 +30,7 @@ func (g *Game) getFilteredAvailableMoves() []byte {
 }
 
 func (g *Game) filterGreedyMove(moves []byte) []byte {
-	offset, _ := g.getOffset(g.CurrentPlayer)
+	offset, _ := getOffset(g.CurrentPlayer)
 	closeWinning := []byte{}
 	for _, move := range moves {
 		if checkCloseWinningSequenceMove(move, (g.Board[g.CurrentBoard]>>offset)&0x1FF, (g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF) {
@@ -41,7 +41,7 @@ func (g *Game) filterGreedyMove(moves []byte) []byte {
 }
 
 func (g *Game) filterSuddenDeathMoves(moves []byte) []byte {
-	_, enemyOffset := g.getOffset(g.CurrentPlayer)
+	_, enemyOffset := getOffset(g.CurrentPlayer)
 
 	// Check if enemy can win next board if we choose a move
 	var acceptableMoves []byte

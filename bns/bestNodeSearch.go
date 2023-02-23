@@ -27,7 +27,7 @@ func nextGuess(alpha float64, beta float64, subtreeCount int) float64 {
 	*/
 }
 
-const inf float64 = 8000
+const inf float64 = 2000
 
 func BestNodeSearch(node *minimax.Node, test float64, depth byte) (int, float64) {
 	children := []int{}
@@ -37,11 +37,11 @@ func BestNodeSearch(node *minimax.Node, test float64, depth byte) (int, float64)
 
 	alpha, beta := -inf, inf
 	bestMove := 0
-	for alpha+0.05 < beta && len(children) > 1 {
+	for alpha+0.25 < beta && len(children) > 1 {
 		worthyChildren := []int{}
 
 		for _, i := range children {
-			bestVal, _ := minimax.NewNode(node.State, i).Search(-test, -(test - 1), depth, node.State.CurrentPlayer)
+			bestVal, _ := minimax.NewNode(&node.State, i).Search(-test, -(test - 1), depth, node.State.CurrentPlayer)
 			if bestVal >= test {
 				bestMove = i
 				worthyChildren = append(worthyChildren, i)

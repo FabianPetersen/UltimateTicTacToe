@@ -69,7 +69,7 @@ func (g *Game) ApplyAction(i int) (*Game, error) {
 	newGame := g.Copy()
 	move, err := g.GetMove(i)
 	newGame.MakeMove(newGame.CurrentBoard, move)
-	return newGame, err
+	return &newGame, err
 }
 
 //ApplyAction applies the ith action (0-indexed) to the game state,
@@ -120,6 +120,7 @@ func (g *Game) Winners() []Player {
 }
 
 func NewGame() *Game {
+	PopulateBoards()
 	return &Game{
 		CurrentPlayer: Player1,
 		Board:         [boardLength]uint32{},
@@ -128,13 +129,23 @@ func NewGame() *Game {
 	}
 }
 
-func (g *Game) Copy() *Game {
-	newG := NewGame()
-	newG.CurrentPlayer = g.CurrentPlayer
-	newG.CurrentBoard = g.CurrentBoard
-	newG.overallBoard = g.overallBoard
-	copy(newG.Board[:], g.Board[:])
-	return newG
+func (g *Game) Copy() Game {
+	return Game{
+		CurrentPlayer: g.CurrentPlayer,
+		Board: [boardLength]uint32{
+			g.Board[0],
+			g.Board[1],
+			g.Board[2],
+			g.Board[3],
+			g.Board[4],
+			g.Board[5],
+			g.Board[6],
+			g.Board[7],
+			g.Board[8],
+		},
+		CurrentBoard: g.CurrentBoard,
+		overallBoard: g.overallBoard,
+	}
 }
 
 func (g *Game) Rotate() {

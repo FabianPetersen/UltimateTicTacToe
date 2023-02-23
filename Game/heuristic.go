@@ -9,28 +9,30 @@ const posMiddleRating = 0.22
 
 var boardRating = []float64{boardCornerRating, boardSideRating, boardCornerRating, boardSideRating, boardCornerRating, boardSideRating, boardCornerRating, boardSideRating, boardMiddleRating}
 var posRating = []float64{posCornerRating, posSideRating, posCornerRating, posSideRating, posCornerRating, posSideRating, posCornerRating, posSideRating, posMiddleRating}
-var boardHeuristicCacheP1 = map[uint32]float64{}
-var boardHeuristicCacheP2 = map[uint32]float64{}
+var BoardHeuristicCacheP1 = map[uint32]float64{}
+var BoardHeuristicCacheP2 = map[uint32]float64{}
 
-var HeuristicStorage = NewStorage()
+// var HeuristicStorage = NewStorage()
 
-func (g *Game) getOffset(player Player) (int, int) {
+func getOffset(player Player) (int, int) {
 	if player == Player1 {
 		return 0, 9
 	}
 	return 9, 0
 }
 
-func (g *Game) HeuristicBoard(player Player, board uint32, isOverallBoard bool) float64 {
-	if player == Player1 {
-		if score, ok := boardHeuristicCacheP1[board]; ok {
+func HeuristicBoard(player Player, board uint32, isOverallBoard bool) float64 {
+	if !isOverallBoard {
+		if player == Player1 {
+			if score, ok := BoardHeuristicCacheP1[board&0x3FFFF]; ok {
+				return score
+			}
+		} else if score, ok := BoardHeuristicCacheP2[board&0x3FFFF]; ok {
 			return score
 		}
-	} else if score, ok := boardHeuristicCacheP2[board]; ok {
-		return score
 	}
 
-	offset, enemyOffset := g.getOffset(player)
+	offset, enemyOffset := getOffset(player)
 	var score float64 = 0
 
 	// Calculate pos rating
@@ -83,50 +85,40 @@ func (g *Game) HeuristicBoard(player Player, board uint32, isOverallBoard bool) 
 			score -= 10 - float64(bitCount(enemyBoard))*0.25
 		}
 	}
-
-	if player == Player1 {
-		boardHeuristicCacheP1[board] = score
-	} else {
-		boardHeuristicCacheP2[board] = score
-	}
 	return score
 }
 
 func (g *Game) HeuristicPlayer(player Player) float64 {
 	// Don't rerun calculation unless needed
-	if player == Player2 {
+	/*if player == Player2 {
 		if score, ok := HeuristicStorage.Get(g.Hash()); ok {
 			return score
 		}
-	}
+	}*/
 
 	var score float64 = 0
-	var playerOffset, enemyOffset = g.getOffset(player)
-
+	var playerOffset, enemyOffset = getOffset(player)
 	if checkCompleted((g.overallBoard >> playerOffset) & 0x1FF) {
 		// Incentivise quicker wins
-		score = 5000 - float64(g.MovesMade())*10
-		HeuristicStorage.Set(g.Hash(), score)
+		score = 750 - float64(g.MovesMade())*10
+		// HeuristicStorage.Set(g.Hash(), score)
 		return score
 	}
 
 	if checkCompleted((g.overallBoard >> enemyOffset) & 0x1FF) {
 		// Incentivise slower losses
-		score -= 5000 - float64(g.MovesMade())*5
+		score -= 750 - float64(g.MovesMade())*5
 	}
 
 	for i := 0; i < boardLength; i++ {
-		boardScore := g.HeuristicBoard(player, g.Board[i], false)
+		boardScore := HeuristicBoard(player, g.Board[i], false)
 		score += boardScore * 1.5 * boardRating[i]
-		/*if i == int(g.CurrentBoard) {
-			score += boardScore * boardRating[i]
-		}*/
 	}
 
-	score += g.HeuristicBoard(player, g.overallBoard, true) * 150
-	if player == Player2 {
+	score += HeuristicBoard(player, g.overallBoard, true) * 150
+	/*if player == Player2 {
 		HeuristicStorage.Set(g.Hash(), score)
-	}
+	}*/
 	return score
 }
 
@@ -153,4 +145,46 @@ func (g *Game) MovesMade() uint32 {
 		movesPlayed += bitCount(g.Board[i] & 0x3FFFF)
 	}
 	return movesPlayed
+}
+
+func PopulateBoards() {
+	for i := 0; i < 19683; i++ {
+		c := i
+		var board uint32 = 0
+		for ii := 0; ii < 9; ii++ {
+			switch c % 3 {
+			case 0:
+			case 1:
+				board |= 0x1 << ii
+			case 2:
+				board |= 0x1 << (ii + 9)
+			}
+			c /= 3
+		}
+
+		isValid := false
+
+		// Check if board is valid
+		xBoard, oBoard, _ := board&0x1FF, (board>>9)&0x1FF, (board&0x1FF)|((board>>9)&0x1FF)
+		xCount, oCount := bitCount(xBoard), bitCount(oBoard)
+
+		// Board can be valid only if either
+		// xCount and oCount is same or count
+		// is one more than oCount
+		if xCount == oCount || xCount+1 == oCount || xCount == oCount+1 {
+			xWin, oWin := checkCompleted(xBoard), checkCompleted(oBoard)
+			if xWin && !oWin {
+				isValid = true
+			} else if !xWin && oWin {
+				isValid = true
+			} else if !xWin && !oWin {
+				isValid = true
+			}
+		}
+
+		if isValid {
+			BoardHeuristicCacheP1[board] = HeuristicBoard(Player1, board, false)
+			BoardHeuristicCacheP2[board] = HeuristicBoard(Player2, board, false)
+		}
+	}
 }

@@ -118,8 +118,8 @@ func (g *GameEngine) getBotMove() int {
 		botMove = mini.Search()
 
 	case MINIMAX_ITERATIVE:
-		mini := minimax.NewMinimax(g.game)
-		botMove = mini.SearchIterative()
+		//mini := minimax.NewMinimax(g.game)
+		//botMove = mini.SearchIterative()
 
 	case BNS:
 		botMove = bns.IterativeDeepening(&minimax.Node{
@@ -218,8 +218,8 @@ func (g *GameEngine) DrawSingleGameEngine(screen *ebiten.Image, boardX float64, 
 		}
 	}
 
-	p1Score := g.game.HeuristicBoard(Game.Player1, g.game.Board[boardIndex], false)
-	p2Score := g.game.HeuristicBoard(Game.Player2, g.game.Board[boardIndex], false)
+	p1Score := Game.HeuristicBoard(Game.Player1, g.game.Board[boardIndex], false)
+	p2Score := Game.HeuristicBoard(Game.Player2, g.game.Board[boardIndex], false)
 	p1ScoreString := fmt.Sprintf("Player 1: %.2f", p1Score)
 	p2ScoreString := fmt.Sprintf("Player 2: %.2f", p2Score)
 	ebitenutil.DebugPrintAt(screen, p1ScoreString, int(startX+2), int(startY+5))

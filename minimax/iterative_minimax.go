@@ -1,11 +1,5 @@
 package minimax
 
-import (
-	"fmt"
-	"github.com/FabianPetersen/UltimateTicTacToe/Game"
-	"math"
-)
-
 /*
 
 def negamax_nr(game, target_depth, scoring, alpha=-INF, beta=+INF):
@@ -111,7 +105,7 @@ def negamax_nr(game, target_depth, scoring, alpha=-INF, beta=+INF):
     game.ai_move = best_move
     return best_value
 */
-
+/*
 type StateHolder struct {
 	Alpha       float64
 	Beta        float64
@@ -213,3 +207,4 @@ func (minimax *Minimax) SearchIterative() int {
 	fmt.Printf("Stored nodes, %d %d, Depth %d \n", len(TranspositionTable.nodeStore), Game.HeuristicStorage.Count(), minimax.Depth)
 	return bestMove
 }
+*/
