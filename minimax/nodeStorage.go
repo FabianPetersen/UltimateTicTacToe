@@ -24,7 +24,5 @@ func (storage *Storage) Reset() {
 }
 
 func NewStorage() Storage {
-	return Storage{
-		nodeStore: make(map[[9]uint32]*Node, 150000),
-	}
+	return Storage{}
 }

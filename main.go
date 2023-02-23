@@ -109,9 +109,9 @@ func (g *GameEngine) getBotMove() int {
 	botMove := 0
 	switch activeBotAlgorithm {
 	case MTD_F:
-		botMove = mtd.IterativeDeepening(&minimax.Node{
+		botMove = mtd.IterativeDeepeningTime(&minimax.Node{
 			State: g.game.Copy(),
-		}, minimax.GetDepth(g.game))
+		}, 100*time.Millisecond)
 
 	case MINIMAX:
 		mini := minimax.NewMinimax(g.game)

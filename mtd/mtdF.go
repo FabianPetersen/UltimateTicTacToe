@@ -3,9 +3,10 @@ package mtd
 import (
 	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/minimax"
+	"time"
 )
 
-const inf float64 = 10000
+const inf float64 = 5000
 
 func mtdF(node *minimax.Node, f float64, d byte) (float64, int) {
 	g := f
@@ -42,5 +43,20 @@ func IterativeDeepening(node *minimax.Node, maxDepth byte) int {
 		firstGuess, bestMove = mtdF(node, firstGuess, d)
 	}
 	fmt.Printf("Stored nodes, %d Depth %d \n", minimax.TranspositionTable.Count(), maxDepth)
+	return bestMove
+}
+
+func IterativeDeepeningTime(node *minimax.Node, maxTime time.Duration) int {
+	// Start the guess at the current heuristic
+	var firstGuess float64 = node.State.HeuristicPlayer(node.State.CurrentPlayer)
+	bestMove := 0
+	var d byte = 0
+	// Game.HeuristicStorage.Reset()
+	minimax.TranspositionTable.Reset()
+	start := time.Now()
+	for ; time.Since(start) < maxTime; d++ {
+		firstGuess, bestMove = mtdF(node, firstGuess, d)
+	}
+	fmt.Printf("Stored nodes, %d Depth %d \n", minimax.TranspositionTable.Count(), d)
 	return bestMove
 }

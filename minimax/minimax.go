@@ -90,7 +90,7 @@ func (n *Node) Search(alpha float64, beta float64, depth byte, maxPlayer Game.Pl
 		value = math.Inf(-1)
 		length := n.State.Len()
 		a := alpha
-		for i := 0; value < beta && i < length; i++ {
+		for i := 0; i < length; i++ {
 			searchValue, _ := NewNode(&n.State, i).Search(a, beta, depth-1, maxPlayer)
 			if searchValue >= value {
 				value = searchValue
@@ -98,19 +98,25 @@ func (n *Node) Search(alpha float64, beta float64, depth byte, maxPlayer Game.Pl
 			}
 
 			a = math.Max(a, value)
+			if value >= beta {
+				break
+			}
 		}
 
 	} else {
 		value = math.Inf(1)
 		length := n.State.Len()
 		b := beta
-		for i := 0; value > alpha && i < length; i++ {
+		for i := 0; i < length; i++ {
 			searchValue, _ := NewNode(&n.State, i).Search(alpha, b, depth-1, maxPlayer)
 			if searchValue <= value {
 				value = searchValue
 				currentBestMove = i
 			}
 			b = math.Min(b, value)
+			if value <= alpha {
+				break
+			}
 		}
 	}
 

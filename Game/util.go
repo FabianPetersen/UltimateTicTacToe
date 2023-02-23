@@ -1,13 +1,13 @@
 package Game
 
 func checkCompleted(test uint32) bool {
-	return (test&0x111) == 0x111 || (test&0x144) == 0x144 || (test&0x7) == 0x7 || (test&0x188) == 0x188 || (test&0x70) == 0x70 || (test&0xc1) == 0xc1 || (test&0x122) == 0x122 || (test&0x1c) == 0x1c
+	return bitCount(test) > 2 && ((test&0x111) == 0x111 || (test&0x144) == 0x144 || (test&0x7) == 0x7 || (test&0x188) == 0x188 || (test&0x70) == 0x70 || (test&0xc1) == 0xc1 || (test&0x122) == 0x122 || (test&0x1c) == 0x1c)
 }
 
 func checkCloseWinningSequence(player uint32, board uint32) uint32 {
 	var i byte = 0
 	for ; i < boardLength; i++ {
-		if checkCloseWinningSequenceMove(i, player, board) {
+		if checkCloseWinningSequenceMove(moveOrder[i], player, board) {
 			return 1
 		}
 	}
