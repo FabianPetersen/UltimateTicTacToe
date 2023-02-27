@@ -1,11 +1,5 @@
 package minimax
 
-import (
-	"fmt"
-	"github.com/FabianPetersen/UltimateTicTacToe/Game"
-	"math"
-)
-
 /*
 
 def negamax_nr(game, target_depth, scoring, alpha=-INF, beta=+INF):
@@ -111,38 +105,38 @@ def negamax_nr(game, target_depth, scoring, alpha=-INF, beta=+INF):
     game.ai_move = best_move
     return best_value
 */
-
+/*
 type StateHolder struct {
 	Alpha       float64
 	Beta        float64
-	BestMove    int
+	BestMove    byte
 	MoveLength  int
 	BestValue   float64
-	CurrentMove int
+	CurrentMove byte
 	Player      Game.Player
 	GameCopy    Game.Game
 }
 
 func (state *StateHolder) OutOfMoves() bool {
-	return state.CurrentMove >= state.GameCopy.Len()-1
+	return false // TODO: fix this //state.CurrentMove >= state.GameCopy.Len()-1
 }
 
-func (state *StateHolder) NextMove() (int, error) {
+func (state *StateHolder) NextMove() (byte, int, error) {
 	state.CurrentMove += 1
-	return state.GameCopy.GetMove(state.CurrentMove)
+	return 0, 0, nil // TODO: fix this
 }
 
 const UP = 1
 const DOWN = 0
 
-func (n *Node) SearchIterative(alpha float64, beta float64, targetDepth byte, maxPlayer Game.Player) (float64, int) {
-	if targetDepth < 2 || n.State.IsTerminal() {
-		return n.State.HeuristicPlayer(maxPlayer), n.bestMove
+func (n *Node) SearchIterative(state *Game.Game, alpha float64, beta float64, targetDepth byte, maxPlayer Game.Player) (float64, byte) {
+	if targetDepth < 2 || state.IsTerminal() {
+		return state.HeuristicPlayer(maxPlayer), n.bestMove
 	}
 
 	states := make([]StateHolder, targetDepth)
 	depth := byte(0)
-	game := n.State.Copy()
+	game := state.Copy()
 	states[depth].GameCopy = game
 	states[depth].Alpha = alpha
 	states[depth].Beta = beta
@@ -157,19 +151,19 @@ func (n *Node) SearchIterative(alpha float64, beta float64, targetDepth byte, ma
 				states[depth].BestMove = 0
 				states[depth].BestValue = math.Inf(-1)
 				states[depth].CurrentMove = 0
-				states[depth].Player = game.CurrentPlayer
+				//states[depth].Player = game.CurrentPlayer
 				states[depth].Alpha = -states[parent].Beta // inherit alpha from -beta
 				states[depth].Beta = -states[parent].Alpha // inherit beta from -alpha
 
-				index := states[depth].CurrentMove
-				game.ApplyActionModify(index)
+				// index := states[depth].CurrentMove
+				// game.ApplyActionModify(index)
 				direction = DOWN
 				depth += 1
 			} else { // reached a leaf or the game is over; going back up
 				leafValue := -game.HeuristicPlayer(maxPlayer)
-				if game.CurrentPlayer != maxPlayer {
+				/*if game.CurrentPlayer != maxPlayer {
 					leafValue = -leafValue
-				}
+				}/
 				if leafValue > states[parent].BestValue {
 					states[parent].BestValue = leafValue
 					states[parent].BestMove = states[parent].CurrentMove
@@ -200,8 +194,8 @@ func (n *Node) SearchIterative(alpha float64, beta float64, targetDepth byte, ma
 				continue
 			} else { // or go down the next branch
 				game = states[depth].GameCopy.Copy()
-				move, _ := states[depth].NextMove()
-				game.ApplyActionModify(move)
+				// _, move, _ := states[depth].NextMove()
+				// game.ApplyActionModify(move) // TODO: this is wrong
 				direction = DOWN
 				depth += 1
 			}
@@ -211,13 +205,14 @@ func (n *Node) SearchIterative(alpha float64, beta float64, targetDepth byte, ma
 	return states[1].BestValue, states[1].BestMove
 }
 
-func (minimax *Minimax) SearchIterative() int {
+func (minimax *Minimax) SearchIterative(state *Game.Game) byte {
 	if minimax.Depth == 0 {
-		minimax.setDepth()
+		minimax.setDepth(state)
 	}
 
 	TranspositionTable.Reset()
-	_, bestMove := minimax.root.SearchIterative(math.Inf(-1), math.Inf(1), minimax.Depth, Game.Player2)
+	_, bestMove := minimax.root.SearchIterative(state, math.Inf(-1), math.Inf(1), minimax.Depth, Game.Player2)
 	fmt.Printf("Stored nodes, %d %d, Depth %d \n", len(TranspositionTable.nodeStore), minimax.Depth)
 	return bestMove
 }
+*/

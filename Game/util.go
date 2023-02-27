@@ -1,7 +1,15 @@
 package Game
 
-func checkCompleted(test uint32) bool {
-	return bitCount(test) > 2 && ((test&0x111) == 0x111 || (test&0x144) == 0x144 || (test&0x7) == 0x7 || (test&0x188) == 0x188 || (test&0x70) == 0x70 || (test&0xc1) == 0xc1 || (test&0x122) == 0x122 || (test&0x1c) == 0x1c)
+func CheckCompleted(test uint32) bool {
+	if bitCount(test) < 2 {
+		return false
+	}
+
+	if test&0x100 > 0 && ((test&0x111) == 0x111 || (test&0x144) == 0x144 || (test&0x188) == 0x188) || (test&0x122) == 0x122 {
+		return true
+	}
+
+	return (test&0x7) == 0x7 || (test&0x70) == 0x70 || (test&0xc1) == 0xc1 || (test&0x1c) == 0x1c
 }
 
 func checkCloseWinningSequence(player uint32, board uint32) uint32 {
@@ -21,7 +29,7 @@ func checkCloseWinningSequenceMove(i byte, player uint32, board uint32) bool {
 	}
 
 	player |= 0x1 << i
-	return checkCompleted(player)
+	return CheckCompleted(player)
 }
 
 func bitCount(u uint32) uint32 {
@@ -30,7 +38,7 @@ func bitCount(u uint32) uint32 {
 	return ((uCount + (uCount >> 3)) & 030707070707) % 63
 }
 
-func rotl2(x uint32) uint32 {
+func rotl(x uint32, by uint32) uint32 {
 	x &= 0xff
-	return (x<<2 | x>>6) & 0xFF
+	return (x<<by | x>>(8-by)) & 0xFF
 }

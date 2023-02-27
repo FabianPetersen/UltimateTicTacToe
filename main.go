@@ -77,54 +77,52 @@ func (g *GameEngine) Update() error {
 		return nil
 	}
 
+	currentPlayer := Game.Player(g.game.Board[Game.PlayerBoardIndex] & 0x1)
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		if !HUMAN {
-			for i := 0; i < 6 && !g.game.IsTerminal(); i++ {
-				if g.game.Player() == Game.Player1 {
-					randomIndex := randSource.Intn(g.game.Len())
-					actualMove, _ := g.game.GetMove(randomIndex)
-					g.game.MakeMove(g.game.CurrentBoard, actualMove)
-				} else {
-					actualMove := g.getBotMove()
-					g.game.MakeMove(g.game.CurrentBoard, actualMove)
-				}
-			}
-		}
-
-		if HUMAN && !g.game.IsTerminal() && g.game.Player() == Game.Player2 {
+		if HUMAN && !g.game.IsTerminal() && currentPlayer == Game.Player1 {
 			x, y := ebiten.CursorPosition()
 			boardIndex, posIndex := g.getBoardPos(float64(x), float64(y))
-			g.game.MakeMove(byte(boardIndex), posIndex)
+			if g.game.ValidMove(byte(boardIndex), byte(posIndex)) {
+				g.game.MakeMove(byte(boardIndex), byte(posIndex))
+				/*
+					g.game.UnMakeMove(posIndex, byte(boardIndex))
+					for i := 0; i < 4; i++ {
+						g.game.Rotate()
+					}
+					g.game.Invert()
+					g.game.Invert()
+					g.game.MakeMove(byte(boardIndex), posIndex)
+				*/
+			}
 		}
-	} else if HUMAN && !g.game.IsTerminal() && g.game.Player() == Game.Player1 {
-		botmove := g.getBotMove()
-		g.game.MakeMove(g.game.CurrentBoard, botmove)
+	} else if HUMAN && !g.game.IsTerminal() && currentPlayer == Game.Player2 {
+		board, botmove := g.getBotMove()
+		// Check if the board is empty
+		if g.game.ValidMove(board, botmove) {
+			g.game.MakeMove(board, botmove)
+		}
 	}
 
 	return nil
 }
 
-func (g *GameEngine) getBotMove() int {
-	// timeToSearch := 1000 * time.Millisecond
-	botMove := 0
+func (g *GameEngine) getBotMove() (byte, byte) {
+	var botMove byte = 254
+	var botBoard byte = 254
 	switch activeBotAlgorithm {
 	case MTD_F:
-		botMove = mtd.IterativeDeepeningTime(&minimax.Node{
-			State: g.game.Copy(),
-		}, 100*time.Millisecond)
+		botMove, botBoard = mtd.IterativeDeepeningTime(g.game, 100*time.Millisecond)
 
 	case MINIMAX:
-		mini := minimax.NewMinimax(g.game)
-		botMove = mini.Search()
+		mini := minimax.NewMinimax()
+		botMove, botBoard = mini.Search(g.game)
 
 	case MINIMAX_ITERATIVE:
 		//mini := minimax.NewMinimax(g.game)
 		//botMove = mini.SearchIterative()
 
 	case BNS:
-		botMove = bns.IterativeDeepening(&minimax.Node{
-			State: g.game.Copy(),
-		}, minimax.GetDepth(g.game))
+		botMove = bns.IterativeDeepening(g.game, minimax.GetDepth(g.game))
 
 		/*
 			case MONTE_CARLO_TREE_SEARCH:
@@ -135,12 +133,7 @@ func (g *GameEngine) getBotMove() int {
 				botMove, _ = mcts.BestAction()
 		*/
 	}
-
-	actualMove, err := g.game.GetMove(botMove)
-	if err != nil {
-		fmt.Println("Error", err.Error())
-	}
-	return actualMove
+	return botBoard, botMove
 }
 
 func (g *GameEngine) getBoardPos(clickX float64, clickY float64) (boardIndex int, posIndex int) {
@@ -172,7 +165,7 @@ func (g *GameEngine) DrawSingleGameEngine(screen *ebiten.Image, boardX float64, 
 	startY := offset/2 + (height * boardY)
 
 	// Print current board background color
-	if g.game.CurrentBoard == boardIndex {
+	if byte(g.game.Board[Game.PlayerBoardIndex]>>1) == boardIndex {
 		ebitenutil.DrawRect(screen, startX, startY, width, height, activeBoardColor)
 	}
 
@@ -207,15 +200,12 @@ func (g *GameEngine) DrawSingleGameEngine(screen *ebiten.Image, boardX float64, 
 		}
 	}
 
-	winners := g.game.Winner(boardIndex)
-	if len(winners) > 0 {
-		if len(winners) >= 2 {
-			ebitenutil.DebugPrintAt(screen, "draw", int(startX+width/4)-int(float64(len("Draw"))*3.25), int(startY+height/4))
-		} else if winners[0] == Game.Player1 {
-			ebitenutil.DrawCircle(screen, startX+width/2, startY+height/2, 70, rgba)
-		} else if winners[0] == Game.Player2 {
-			ebitenutil.DrawRect(screen, startX+width/4, startY+height/4, width/2, height/2, rgba)
-		}
+	if (g.game.OverallBoard>>boardIndex)&0x1 > 0 {
+		ebitenutil.DrawCircle(screen, startX+width/2, startY+height/2, 70, rgba)
+	} else if (g.game.OverallBoard>>(boardIndex+9))&0x1 > 0 {
+		ebitenutil.DrawRect(screen, startX+width/4, startY+height/4, width/2, height/2, rgba)
+	} else if (g.game.OverallBoard>>(boardIndex+18))&0x1 > 0 {
+		ebitenutil.DebugPrintAt(screen, "draw", int(startX+width/4)-int(float64(len("Draw"))*3.25), int(startY+height/4))
 	}
 
 	p1Score := Game.HeuristicBoard(Game.Player1, g.game.Board[boardIndex], false)
@@ -227,15 +217,23 @@ func (g *GameEngine) DrawSingleGameEngine(screen *ebiten.Image, boardX float64, 
 }
 
 func (g *GameEngine) Draw(screen *ebiten.Image) {
+	if byte(g.game.Board[Game.PlayerBoardIndex]>>1) == Game.GlobalBoard {
+		ebitenutil.DrawRect(screen, 0, 0, windowSizeW, windowSizeH, activeBoardColor)
+	}
+
 	for boardIndex, boardPos := range boards {
 		g.DrawSingleGameEngine(screen, boardPos[0], boardPos[1], byte(boardIndex))
 	}
 
-	winners := g.game.OverallWinner()
-	if len(winners) == 1 {
-		text := fmt.Sprintf("Winner %d", winners[0])
+	if Game.CheckCompleted(g.game.OverallBoard & 0x1FF) {
+		text := fmt.Sprintf("Winner %d", 0)
 		ebitenutil.DebugPrintAt(screen, text, windowSizeW/2-int(float64(len(text))*3.25), windowSizeH/2)
-	} else if len(winners) == 2 {
+
+	} else if Game.CheckCompleted((g.game.OverallBoard >> 9) & 0x1FF) {
+		text := fmt.Sprintf("Winner %d", 1)
+		ebitenutil.DebugPrintAt(screen, text, windowSizeW/2-int(float64(len(text))*3.25), windowSizeH/2)
+
+	} else if ((g.game.OverallBoard>>18)|(g.game.OverallBoard>>9)|g.game.OverallBoard)&0x1FF == 0x1FF {
 		ebitenutil.DebugPrintAt(screen, "Draw", windowSizeW/2-int(float64(len("Draw"))*3.25), windowSizeH/2)
 	}
 

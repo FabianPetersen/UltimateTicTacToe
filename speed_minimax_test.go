@@ -7,8 +7,8 @@ import (
 )
 
 func TestSpeedMinimax(t *testing.T) {
-	mm := minimax.NewMinimax(game)
+	mm := minimax.NewMinimax()
 	mm.Depth = 10
-	move := mm.Search()
+	move, _ := mm.Search(game)
 	fmt.Println(move)
 }

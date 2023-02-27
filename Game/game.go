@@ -1,7 +1,6 @@
 package Game
 
 import (
-	"errors"
 	"math/rand"
 	"time"
 )
@@ -17,11 +16,13 @@ import (
 */
 
 type Player byte
-type GameHash *[9]uint32
+type GameHash *[10]uint32
 
-const Player1 Player = 1
-const Player2 Player = 2
+const Player1 Player = 0
+const Player2 Player = 1
 const boardLength = 9
+const GlobalBoard byte = 0xF0
+const PlayerBoardIndex = 9
 
 var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 
@@ -29,110 +30,79 @@ var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 var moveOrder = []byte{0, 4, 2, 6, 8, 1, 3, 5, 7}
 
 type Game struct {
-	CurrentPlayer Player
-	CurrentBoard  byte
-	Board         [boardLength]uint32
-	overallBoard  uint32
-
-	lastBoard byte
-	lastPos   int
+	Board        [boardLength + 1]uint32
+	OverallBoard uint32
 }
 
-//Len returns the number of actions to consider.
-func (g *Game) Len() int {
-	return int(boardLength - bitCount((g.Board[g.CurrentBoard]|(g.Board[g.CurrentBoard]>>9))&0x1FF))
-	//return len(g.getFilteredAvailableMoves())
-}
-
-func (g *Game) GetMove(i int) (int, error) {
-	count := 0
-	board := (g.Board[g.CurrentBoard] | (g.Board[g.CurrentBoard] >> 9)) & 0x1FF
-	for _, move := range moveOrder {
-		if board&(0x1<<move) == 0 {
-			if i == count {
-				return int(move), nil
+func (g *Game) GetMoves(executeMove func(byte, byte) bool) {
+	currentBoard := byte(g.Board[PlayerBoardIndex] >> 1)
+	if currentBoard != GlobalBoard {
+		board := (g.Board[currentBoard] | (g.Board[currentBoard] >> 9)) & 0x1FF
+		for _, move := range moveOrder {
+			if board&(0x1<<move) == 0 {
+				if executeMove(currentBoard, move) {
+					return
+				}
 			}
-			count += 1
+		}
+	} else {
+		for _, i := range moveOrder {
+			// Check if the board is open
+			if g.OverallBoard&((0x1<<i)|(0x1<<(i+9))|(0x1<<(i+18))) == 0 {
+				board := (g.Board[i] | (g.Board[i] >> 9)) & 0x1FF
+				for _, move := range moveOrder {
+					if board&(0x1<<move) == 0 {
+						if executeMove(i, move) {
+							return
+						}
+					}
+				}
+			}
 		}
 	}
-	panic(errors.New("data"))
-	return 0, errors.New("could not find move")
-	/*
-		moves := g.getFilteredAvailableMoves()
-		return int(moves[i]), nil
-	*/
 }
 
-//ApplyAction applies the ith action (0-indexed) to the game state,
-//and returns a new game state and an error for invalid actions
-func (g *Game) ApplyAction(i int) (*Game, error) {
-	newGame := g.Copy()
-	move, err := g.GetMove(i)
-	newGame.MakeMove(newGame.CurrentBoard, move)
-	return &newGame, err
-}
-
-//ApplyAction applies the ith action (0-indexed) to the game state,
-// This will modify the game object
-func (g *Game) ApplyActionModify(i int) {
-	move, _ := g.GetMove(i)
-	g.MakeMove(g.CurrentBoard, move)
-}
-
-//Hash returns a unique representation of the state.
-//Any return value must be comparable.
-//This is to separate states that seemingly look the same,
-//but actually occur on different turn orders. Without this,
-//the directed acyclic graph will become a directed cyclic graph,
-//which this MCTS implementation cannot handle properly.
 func (g *Game) Hash() GameHash {
 	return &g.Board
 }
 
 func (g *Game) Compare(c *Game) bool {
-	for i := 0; i < boardLength; i++ {
+	for i := 0; i < boardLength+1; i++ {
 		if g.Board[i] != c.Board[i] {
 			return false
 		}
 	}
 
-	return g.CurrentBoard == c.CurrentBoard && g.CurrentPlayer == c.CurrentPlayer
-}
-
-//Player returns the player that can take the next action
-func (g *Game) Player() Player {
-	if g.CurrentPlayer == Player1 {
-		return Player2
-	} else {
-		return Player1
-	}
+	return true
 }
 
 //IsTerminal returns true if this game state is a terminal state
 func (g *Game) IsTerminal() bool {
-	return len(g.OverallWinner()) > 0
-}
-
-//Winners returns a list of players that have won the game if
-//IsTerminal() returns true
-func (g *Game) Winners() []Player {
-	return g.OverallWinner()
+	return CheckCompleted(g.OverallBoard&0x1FF) || CheckCompleted((g.OverallBoard>>9)&0x1FF) || ((g.OverallBoard>>18)|(g.OverallBoard>>9)|g.OverallBoard)&0x1FF == 0x1FF
 }
 
 func NewGame() *Game {
 	PopulateBoards()
 	return &Game{
-		CurrentPlayer: Player1,
-		Board:         [boardLength]uint32{},
-		CurrentBoard:  0x8,
-		overallBoard:  0x0,
+		Board: [boardLength + 1]uint32{
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0x11,
+		},
+		OverallBoard: 0x0,
 	}
 }
 
 func (g *Game) Copy() Game {
 	return Game{
-		CurrentPlayer: g.CurrentPlayer,
-		Board: [boardLength]uint32{
+		Board: [boardLength + 1]uint32{
 			g.Board[0],
 			g.Board[1],
 			g.Board[2],
@@ -142,86 +112,86 @@ func (g *Game) Copy() Game {
 			g.Board[6],
 			g.Board[7],
 			g.Board[8],
+			g.Board[9],
 		},
-		CurrentBoard: g.CurrentBoard,
-		overallBoard: g.overallBoard,
+		OverallBoard: g.OverallBoard,
 	}
 }
 
-func (g *Game) Rotate() {
-	g.Board[2], g.Board[3], g.Board[4], g.Board[5], g.Board[6], g.Board[7], g.Board[0], g.Board[1] = g.Board[0], g.Board[1], g.Board[2], g.Board[3], g.Board[4], g.Board[5], g.Board[6], g.Board[7]
+func (g *Game) Rotate(rotateBy uint32) {
+	g.Board[rotateBy%8], g.Board[(rotateBy+1)%8], g.Board[(rotateBy+2)%8], g.Board[(rotateBy+3)%8], g.Board[(rotateBy+4)%8], g.Board[(rotateBy+5)%8], g.Board[(rotateBy+6)%8], g.Board[(rotateBy+7)%8] = g.Board[(rotateBy+6)%8], g.Board[(rotateBy+7)%8], g.Board[rotateBy%8], g.Board[(rotateBy+1)%8], g.Board[(rotateBy+2)%8], g.Board[(rotateBy+3)%8], g.Board[(rotateBy+4)%8], g.Board[(rotateBy+5)%8]
 	for i := 0; i < boardLength; i++ {
-		g.Board[i] = g.Board[i]&0xe0020100 | rotl2(g.Board[i]) | (rotl2(g.Board[i]>>9) << 9)
+		g.Board[i] = g.Board[i]&0xe0020100 | rotl(g.Board[i], rotateBy) | (rotl(g.Board[i]>>9, rotateBy) << 9)
 	}
-	g.overallBoard = rotl2(g.overallBoard) | (rotl2(g.overallBoard>>9) << 9) | (rotl2(g.overallBoard>>18) << 18)
+	g.OverallBoard = g.OverallBoard&0xe4020100 | rotl(g.OverallBoard, rotateBy) | (rotl(g.OverallBoard>>9, rotateBy) << 9) | (rotl(g.OverallBoard>>18, rotateBy) << 18)
 
 	// Change current board
-	if g.CurrentBoard != 8 {
-		g.CurrentBoard = (g.CurrentBoard + 2) % 8
+	currentBoard := byte(g.Board[PlayerBoardIndex] >> 1)
+	if currentBoard != 8 && currentBoard != GlobalBoard {
+		g.Board[PlayerBoardIndex] = (((uint32(currentBoard) + rotateBy) % 8) << 1) | (g.Board[PlayerBoardIndex] & 0x1)
 	}
 }
 
 func (g *Game) Invert() {
 	for i := 0; i < boardLength; i++ {
-		g.Board[i] = g.Board[i]&0x80000000 | (g.Board[i]&0x40000000>>1)&0x20000000 | (g.Board[i]&0x20000000<<1)&0x40000000 | (g.Board[i]&0x1FF)<<9 | (g.Board[i]>>9)&0x1FF
+		g.Board[i] = (g.Board[i]&0x1FF)<<9 | (g.Board[i]>>9)&0x1FF
 	}
-	g.overallBoard = g.overallBoard&0x7FC0000 | (g.overallBoard&0x1FF)<<9 | (g.overallBoard>>9)&0x1FF
+	g.OverallBoard = g.OverallBoard&0xFFFC0000 | (g.OverallBoard&0x1FF)<<9 | (g.OverallBoard>>9)&0x1FF
 
 	// Change player
-	if g.CurrentPlayer == Player1 {
-		g.CurrentPlayer = Player2
-	} else {
-		g.CurrentPlayer = Player1
-	}
+	g.Board[PlayerBoardIndex] = (g.Board[PlayerBoardIndex] & 0x1FE) | ((g.Board[PlayerBoardIndex] & 0x1) ^ 0x1)
 }
 
-func (g *Game) UnMakeMove() {
+func (g *Game) UnMakeMove(lastPos byte, lastBoard byte, prevBoard byte) {
 	// Unset move
-	if g.CurrentPlayer == Player2 {
-		g.Board[g.lastBoard] &^= 1<<g.lastPos | 0x80000000 | 0x40000000 | 0x20000000
-		g.CurrentPlayer = Player1
+	if Player(g.Board[PlayerBoardIndex]&0x1) == Player2 {
+		g.Board[lastBoard] &^= 1 << lastPos
 
 	} else {
-		g.Board[g.lastBoard] &^= 1<<(g.lastPos+9) | 0x80000000 | 0x40000000 | 0x20000000
-		g.CurrentPlayer = Player2
+		g.Board[lastBoard] &^= 1 << (lastPos + 9)
 	}
 
 	// Reset win
-	g.overallBoard &^= 0x1<<g.lastBoard | 0x1<<(g.lastBoard+9) | 0x1<<(g.lastBoard+18)
-	g.CurrentBoard = g.lastBoard
+	g.OverallBoard &^= 0x1<<lastBoard | 0x1<<(lastBoard+9) | 0x1<<(lastBoard+18)
+	g.Board[PlayerBoardIndex] = uint32(prevBoard)<<1 | ((g.Board[PlayerBoardIndex] & 0x1) ^ 0x1)
 }
 
-func (g *Game) MakeMove(boardIndex byte, pos int) {
-	g.lastBoard = g.CurrentBoard
-	g.lastPos = pos
+func (g *Game) MakeMove(boardIndex byte, pos byte) {
+	if Player(g.Board[PlayerBoardIndex]&0x1) == Player1 {
+		g.Board[boardIndex] |= 1 << pos
 
-	// Check if the board is empty
-	if boardIndex == g.CurrentBoard && g.Board[boardIndex]&(1<<pos) == 0 && g.Board[boardIndex]&(1<<(pos+9)) == 0 {
-		if g.CurrentPlayer == Player1 {
-			g.Board[boardIndex] |= 1 << pos
-			g.CurrentPlayer = Player2
-
-		} else {
-			g.Board[boardIndex] |= 1 << (pos + 9)
-			g.CurrentPlayer = Player1
+		// Player 1 - WIN
+		if CheckCompleted(g.Board[boardIndex] & 0x1FF) {
+			g.OverallBoard |= 1 << boardIndex
 		}
-		winners := g.Winner(g.CurrentBoard)
 
-		// Only switch board is a space is available
-		if !g.IsBoardFinished(pos) {
-			g.CurrentBoard = byte(pos)
-			// The current and target board is completed
-		} else if len(winners) > 0 {
-			for i := byte(0); i < boardLength; i++ {
-				if len(g.Winner(i)) == 0 {
-					g.CurrentBoard = i
-					break
-				}
-			}
+	} else {
+		g.Board[boardIndex] |= 1 << (pos + 9)
+
+		// Player 2 - WIN
+		if CheckCompleted((g.Board[boardIndex] >> 9) & 0x1FF) {
+			g.OverallBoard |= 1 << (boardIndex + 9)
 		}
+	}
+
+	// Draw
+	if (g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF == 0x1FF {
+		g.OverallBoard |= 1 << (boardIndex + 18)
+	}
+
+	// Only switch board is a space is available
+	if g.IsBoardFinished(pos) {
+		g.Board[PlayerBoardIndex] = uint32(GlobalBoard)<<1 | ((g.Board[PlayerBoardIndex] & 0x1) ^ 0x1)
+	} else {
+		g.Board[PlayerBoardIndex] = uint32(pos)<<1 | ((g.Board[PlayerBoardIndex] & 0x1) ^ 0x1)
 	}
 }
 
-func (g *Game) IsBoardFinished(pos int) bool {
-	return !((g.overallBoard>>pos)&0x1 == 0 && (g.overallBoard>>(pos+9))&0x1 == 0 && (g.overallBoard>>(pos+18))&0x1 == 0)
+func (g *Game) ValidMove(boardIndex byte, pos byte) bool {
+	currentBoard := byte(g.Board[PlayerBoardIndex] >> 1)
+	return !g.IsBoardFinished(boardIndex) && (currentBoard == GlobalBoard || boardIndex == currentBoard) && g.Board[boardIndex]&(1<<pos) == 0 && g.Board[boardIndex]&(1<<(pos+9)) == 0
+}
+
+func (g *Game) IsBoardFinished(pos byte) bool {
+	return !((g.OverallBoard>>pos)&0x1 == 0 && (g.OverallBoard>>(pos+9))&0x1 == 0 && (g.OverallBoard>>(pos+18))&0x1 == 0)
 }

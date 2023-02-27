@@ -3,7 +3,7 @@ package minimax
 import "github.com/FabianPetersen/UltimateTicTacToe/Game"
 
 type Storage struct {
-	nodeStore map[[9]uint32]*Node
+	nodeStore map[[10]uint32]*Node
 }
 
 func (storage *Storage) Count() int {
@@ -15,12 +15,12 @@ func (storage *Storage) Get(hash Game.GameHash) (*Node, bool) {
 	return node, exists
 }
 
-func (storage *Storage) Set(node *Node) {
-	storage.nodeStore[*node.State.Hash()] = node
+func (storage *Storage) Set(hash Game.GameHash, node *Node) {
+	storage.nodeStore[*hash] = node
 }
 
 func (storage *Storage) Reset() {
-	storage.nodeStore = make(map[[9]uint32]*Node, 150000)
+	storage.nodeStore = make(map[[10]uint32]*Node, 150000)
 }
 
 func NewStorage() Storage {

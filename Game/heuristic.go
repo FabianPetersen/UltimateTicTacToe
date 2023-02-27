@@ -12,8 +12,6 @@ var posRating = []float64{posCornerRating, posSideRating, posCornerRating, posSi
 var BoardHeuristicCacheP1 = map[uint32]float64{}
 var BoardHeuristicCacheP2 = map[uint32]float64{}
 
-// var HeuristicStorage = NewStorage()
-
 func getOffset(player Player) (int, int) {
 	if player == Player1 {
 		return 0, 9
@@ -38,10 +36,10 @@ func HeuristicBoard(player Player, board uint32, isOverallBoard bool) float64 {
 	// Calculate pos rating
 	playerBoard := (board >> offset) & 0x1FF
 	enemyBoard := (board >> enemyOffset) & 0x1FF
-	jointBoard := (board>>18)&0x1FF | (board>>offset)&0x1FF | (board>>enemyOffset)&0x1FF
+	jointBoard := (board>>18)&0x1FF | playerBoard | enemyBoard
 
 	// Check if won
-	if checkCompleted(playerBoard) {
+	if CheckCompleted(playerBoard) {
 		// Give a discount on the amount of moves made in the board
 		// To incentivise a lower number of total moves
 		if !isOverallBoard {
@@ -51,7 +49,7 @@ func HeuristicBoard(player Player, board uint32, isOverallBoard bool) float64 {
 		}
 
 		// The board is a draw
-	} else if jointBoard == 0x1FF && !checkCompleted(enemyBoard) {
+	} else if jointBoard == 0x1FF && !CheckCompleted(enemyBoard) {
 		// Give a reward for the amount of wasted enemy moves (or won moves
 		if !isOverallBoard {
 			score += float64(bitCount(enemyBoard)) * 0.12
@@ -68,7 +66,7 @@ func HeuristicBoard(player Player, board uint32, isOverallBoard bool) float64 {
 		}
 
 		// If the board is not won by enemy
-		if !checkCompleted(enemyBoard) {
+		if !CheckCompleted(enemyBoard) {
 			// Check 2 joint items
 			if checkCloseWinningSequence(playerBoard, jointBoard) > 0 {
 				score += 9
@@ -90,24 +88,20 @@ func HeuristicBoard(player Player, board uint32, isOverallBoard bool) float64 {
 
 func (g *Game) HeuristicPlayer(player Player) float64 {
 	// Don't rerun calculation unless needed
-	/*if player == Player2 {
-		if score, ok := HeuristicStorage.Get(g.Hash()); ok {
-			return score
-		}
-	}*/
-
 	var score float64 = 0
 	var playerOffset, enemyOffset = getOffset(player)
-	if checkCompleted((g.overallBoard >> playerOffset) & 0x1FF) {
+	if CheckCompleted((g.OverallBoard >> playerOffset) & 0x1FF) {
 		// Incentivise quicker wins
 		score = 750 - float64(g.MovesMade())*10
-		// HeuristicStorage.Set(g.Hash(), score)
+		return score
+	} else if CheckCompleted((g.OverallBoard >> enemyOffset) & 0x1FF) {
+		// Incentivise slower losses
+		score -= 750 - float64(g.MovesMade())*5
 		return score
 	}
 
-	if checkCompleted((g.overallBoard >> enemyOffset) & 0x1FF) {
-		// Incentivise slower losses
-		score -= 750 - float64(g.MovesMade())*5
+	if byte(g.Board[PlayerBoardIndex]>>1) == GlobalBoard {
+		score += 400
 	}
 
 	for i := 0; i < boardLength; i++ {
@@ -115,27 +109,8 @@ func (g *Game) HeuristicPlayer(player Player) float64 {
 		score += boardScore * 1.5 * boardRating[i]
 	}
 
-	score += HeuristicBoard(player, g.overallBoard, true) * 150
-	/*if player == Player2 {
-		HeuristicStorage.Set(g.Hash(), score)
-	}*/
+	score += HeuristicBoard(player, g.OverallBoard, true) * 150
 	return score
-}
-
-func (g *Game) Heuristic() map[Player]float64 {
-	// var maxScore float64 = 221 // 200 + 9*5 + 10 + 4*3 + 9*4 + 9*2
-	// var minScore float64 = -maxScore
-	// Min-max normalization (usually called feature scaling)
-	// (x - xmin) / (xmax - xmin)
-
-	p1 := g.HeuristicPlayer(Player1)
-	p2 := g.HeuristicPlayer(Player2)
-	return map[Player]float64{
-		Player1: p1,
-		Player2: p2,
-		//		Player1: (p1 - 0.7*p2 - minScore) / (maxScore - minScore),
-		//		Player2: (p2 - 0.7*p1 - minScore) / (maxScore - minScore),
-	}
 }
 
 func (g *Game) MovesMade() uint32 {
@@ -166,20 +141,15 @@ func PopulateBoards() {
 
 		// Check if board is valid
 		xBoard, oBoard, _ := board&0x1FF, (board>>9)&0x1FF, (board&0x1FF)|((board>>9)&0x1FF)
-		xCount, oCount := bitCount(xBoard), bitCount(oBoard)
 
 		// Board can be valid only if either
-		// xCount and oCount is same or count
-		// is one more than oCount
-		if xCount == oCount || xCount+1 == oCount || xCount == oCount+1 {
-			xWin, oWin := checkCompleted(xBoard), checkCompleted(oBoard)
-			if xWin && !oWin {
-				isValid = true
-			} else if !xWin && oWin {
-				isValid = true
-			} else if !xWin && !oWin {
-				isValid = true
-			}
+		xWin, oWin := CheckCompleted(xBoard), CheckCompleted(oBoard)
+		if xWin && !oWin {
+			isValid = true
+		} else if !xWin && oWin {
+			isValid = true
+		} else if !xWin && !oWin {
+			isValid = true
 		}
 
 		if isValid {

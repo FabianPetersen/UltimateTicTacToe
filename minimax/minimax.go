@@ -11,64 +11,51 @@ var TranspositionTable = NewStorage()
 type Flag byte
 
 const (
-	EXACT       = 0
-	UPPER_BOUND = 1
-	LOWER_BOUND = 2
+	EXACT       Flag = 0
+	UPPER_BOUND Flag = 1
+	LOWER_BOUND Flag = 2
 )
 
 type Node struct {
-	State      Game.Game
 	lowerBound float64
 	upperBound float64
-	bestMove   int
+	bestMove   byte
+	bestBoard  byte
 	depth      byte
-	cached     bool
 	flag       Flag
 }
 
-func NewNode(state *Game.Game, action int) *Node {
-	state.ApplyActionModify(action)
-
+func NewNode(state *Game.Game) (*Node, bool) {
 	// Rotate and invert board to check if it already exists in cache
 	var oldNode *Node = nil
 	var exists bool = false
+	var cacheExists bool = false
 	for i := 0; i < 2; i++ {
-		if !exists {
+		if !cacheExists && !exists {
 			for r := 0; r < 4; r++ {
 				// Check if the board exists in the cache
-				if !exists {
+				if !cacheExists && !exists {
 					if oldNode, exists = TranspositionTable.Get(state.Hash()); exists {
-						oldNode.cached = true
+						cacheExists = true
 					}
 				}
-				state.Rotate()
+				state.Rotate(2)
 			}
 		}
 		state.Invert()
 	}
 
-	if exists {
-		state.UnMakeMove()
-		return oldNode
-	}
-
-	cp := state.Copy()
-	state.UnMakeMove()
-
-	// The node has not been found
-	return &Node{
-		State:      cp,
-		lowerBound: math.Inf(-1),
-		upperBound: math.Inf(1),
-		cached:     false,
-	}
+	return oldNode, cacheExists
 }
 
-func (n *Node) Search(alpha float64, beta float64, depth byte, maxPlayer Game.Player) (float64, int) {
+const inf float64 = 10000
+
+func Search(state *Game.Game, alpha float64, beta float64, depth byte, maxPlayer Game.Player) (float64, byte, byte) {
 	// Restore the values from the last node
-	if n.cached && n.depth >= depth {
+	n, cached := NewNode(state)
+	if cached && n.depth >= depth {
 		if n.flag == EXACT {
-			return n.lowerBound, n.bestMove
+			return n.lowerBound, n.bestMove, n.bestBoard
 		} else if n.flag == LOWER_BOUND {
 			alpha = math.Max(alpha, n.lowerBound)
 		} else if n.flag == UPPER_BOUND {
@@ -76,47 +63,58 @@ func (n *Node) Search(alpha float64, beta float64, depth byte, maxPlayer Game.Pl
 		}
 
 		if alpha >= beta {
-			return n.lowerBound, n.bestMove
+			return n.lowerBound, n.bestMove, n.bestBoard
 		}
 	}
 
 	var value float64 = 0
-	var currentBestMove int = 0
-	if depth == 0 || n.State.IsTerminal() {
-		return n.State.HeuristicPlayer(maxPlayer), n.bestMove
+	var currentBestMove byte = 0
+	var currentBestBoard byte = 0
+	var prevBoard = byte(state.Board[Game.PlayerBoardIndex] >> 1)
+	if depth == 0 || state.IsTerminal() {
+		return state.HeuristicPlayer(maxPlayer), 0, 0
 
 		// This is a max node
-	} else if n.State.CurrentPlayer == maxPlayer {
-		value = math.Inf(-1)
-		length := n.State.Len()
+	} else if Game.Player(state.Board[Game.PlayerBoardIndex]&0x1) == maxPlayer {
+		value = -inf
 		a := alpha
-		for i := 0; i < length; i++ {
-			searchValue, _ := NewNode(&n.State, i).Search(a, beta, depth-1, maxPlayer)
+		state.GetMoves(func(boardIndex byte, move byte) bool {
+			state.MakeMove(boardIndex, move)
+			searchValue, _, _ := Search(state, a, beta, depth-1, maxPlayer)
+			state.UnMakeMove(move, boardIndex, prevBoard)
+
 			if searchValue >= value {
 				value = searchValue
-				currentBestMove = i
+				currentBestMove = move
+				currentBestBoard = boardIndex
 			}
 
 			a = math.Max(a, value)
-			if value >= beta {
-				break
-			}
-		}
-
+			return value >= beta
+		})
 	} else {
-		value = math.Inf(1)
-		length := n.State.Len()
+		value = inf
 		b := beta
-		for i := 0; i < length; i++ {
-			searchValue, _ := NewNode(&n.State, i).Search(alpha, b, depth-1, maxPlayer)
+		state.GetMoves(func(boardIndex byte, move byte) bool {
+			state.MakeMove(boardIndex, move)
+			searchValue, _, _ := Search(state, alpha, b, depth-1, maxPlayer)
+			state.UnMakeMove(move, boardIndex, prevBoard)
 			if searchValue <= value {
 				value = searchValue
-				currentBestMove = i
+				currentBestMove = move
+				currentBestBoard = boardIndex
 			}
 			b = math.Min(b, value)
-			if value <= alpha {
-				break
-			}
+			return value <= alpha
+		})
+	}
+
+	if !cached {
+		n = &Node{
+			lowerBound: -inf,
+			upperBound: inf,
+			bestBoard:  251,
+			bestMove:   251,
 		}
 	}
 
@@ -131,17 +129,22 @@ func (n *Node) Search(alpha float64, beta float64, depth byte, maxPlayer Game.Pl
 		n.lowerBound = value
 		n.upperBound = value
 		n.bestMove = currentBestMove
+		n.bestBoard = currentBestBoard
 		n.flag = EXACT
 	}
 	/* Fail high result implies a lower bound */
 	if value >= beta {
 		n.lowerBound = value
 		n.bestMove = currentBestMove
+		n.bestBoard = currentBestBoard
 		n.flag = LOWER_BOUND
 	}
 	n.depth = depth
-	TranspositionTable.Set(n)
-	return value, n.bestMove
+	if !cached {
+		TranspositionTable.Set(state.Hash(), n)
+	}
+
+	return value, n.bestMove, n.bestBoard
 }
 
 type Minimax struct {
@@ -149,27 +152,24 @@ type Minimax struct {
 	Depth byte
 }
 
-func NewMinimax(state *Game.Game) *Minimax {
-	return &Minimax{root: &Node{
-		State:  state.Copy(),
-		cached: false,
-	}, Depth: 0}
+func NewMinimax() *Minimax {
+	return &Minimax{root: &Node{}, Depth: 0}
 }
 
-func (minimax *Minimax) Search() int {
+func (minimax *Minimax) Search(state *Game.Game) (byte, byte) {
 	if minimax.Depth == 0 {
-		minimax.setDepth()
+		minimax.setDepth(state)
 	}
 
 	TranspositionTable.Reset()
 	// Game.HeuristicStorage.Reset()
-	_, bestMove := minimax.root.Search(math.Inf(-1), math.Inf(1), minimax.Depth, minimax.root.State.CurrentPlayer)
+	_, bestMove, bestBoard := Search(state, math.Inf(-1), math.Inf(1), minimax.Depth, Game.Player(state.Board[Game.PlayerBoardIndex]&0x1))
 	fmt.Printf("Stored nodes, %d Depth %d \n", len(TranspositionTable.nodeStore), minimax.Depth)
-	return bestMove
+	return bestMove, bestBoard
 }
 
-func (minimax *Minimax) setDepth() {
-	minimax.Depth = GetDepth(&minimax.root.State)
+func (minimax *Minimax) setDepth(state *Game.Game) {
+	minimax.Depth = GetDepth(state)
 }
 
 func GetDepth(g *Game.Game) byte {
