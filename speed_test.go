@@ -1,11 +1,12 @@
 package main
 
-/*
+import (
+	"github.com/FabianPetersen/UltimateTicTacToe/gmcts"
+	"testing"
+)
+
 func TestSpeed(t *testing.T) {
-	game := Game.NewGame()
+	game.MakeMove(8, 8)
 	mcts := gmcts.NewMCTS(game)
-	tree := mcts.SpawnTree(gmcts.ROBUST_CHILD, gmcts.SMITSIMAX)
-	tree.SearchTime(200 * time.Millisecond)
-	mcts.AddTree(tree)
+	mcts.SearchRounds(25000)
 }
-*/

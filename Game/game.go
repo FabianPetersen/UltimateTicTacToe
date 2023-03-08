@@ -20,18 +20,19 @@ type GameHash *[10]uint32
 
 const Player1 Player = 0
 const Player2 Player = 1
+const Draw Player = 2
 const boardLength = 9
 const GlobalBoard byte = 0xF0
 const PlayerBoardIndex = 9
 
-var randSource = rand.New(rand.NewSource(time.Now().Unix()))
-
 /*	corner -> middle -> side */
 var moveOrder = []byte{0, 4, 2, 6, 8, 1, 3, 5, 7}
+var randSource = rand.New(rand.NewSource(time.Now().Unix()))
 
 type Game struct {
-	Board        [boardLength + 1]uint32
-	OverallBoard uint32
+	Board           [boardLength + 1]uint32
+	OverallBoard    uint32
+	HeuristicScores *HeuristicScores
 }
 
 func (g *Game) GetMoves(executeMove func(byte, byte) bool) {
@@ -76,14 +77,32 @@ func (g *Game) Compare(c *Game) bool {
 	return true
 }
 
-//IsTerminal returns true if this game state is a terminal state
+// IsTerminal returns true if this game state is a terminal state
 func (g *Game) IsTerminal() bool {
 	return CheckCompleted(g.OverallBoard&0x1FF) || CheckCompleted((g.OverallBoard>>9)&0x1FF) || ((g.OverallBoard>>18)|(g.OverallBoard>>9)|g.OverallBoard)&0x1FF == 0x1FF
 }
 
+func (g *Game) WinningPlayer() Player {
+	if CheckCompleted(g.OverallBoard & 0x1FF) {
+		return Player1
+
+	} else if CheckCompleted((g.OverallBoard >> 9) & 0x1FF) {
+		return Player2
+
+	} else if ((g.OverallBoard>>18)|(g.OverallBoard>>9)|g.OverallBoard)&0x1FF == 0x1FF {
+		p1 := bitCount(g.OverallBoard & 0x1FF)
+		p2 := bitCount((g.OverallBoard >> 9) & 0x1FF)
+		if p1 > p2 {
+			return Player1
+		} else if p2 > p1 {
+			return Player2
+		}
+	}
+	return Draw
+}
+
 func NewGame() *Game {
-	PopulateBoards()
-	return &Game{
+	g := &Game{
 		Board: [boardLength + 1]uint32{
 			0,
 			0,
@@ -96,8 +115,11 @@ func NewGame() *Game {
 			0,
 			0x11,
 		},
-		OverallBoard: 0x0,
+		OverallBoard:    0x0,
+		HeuristicScores: DefaultHeuristic(),
 	}
+	g.PopulateBoards()
+	return g
 }
 
 func (g *Game) Copy() Game {
@@ -193,5 +215,53 @@ func (g *Game) ValidMove(boardIndex byte, pos byte) bool {
 }
 
 func (g *Game) IsBoardFinished(pos byte) bool {
-	return !((g.OverallBoard>>pos)&0x1 == 0 && (g.OverallBoard>>(pos+9))&0x1 == 0 && (g.OverallBoard>>(pos+18))&0x1 == 0)
+	return g.OverallBoard&(0x1<<pos|0x1<<(pos+9)|0x1<<(pos+18)) > 0
+	//return !((g.OverallBoard>>pos)&0x1 == 0 && (g.OverallBoard>>(pos+9))&0x1 == 0 && (g.OverallBoard>>(pos+18))&0x1 == 0)
+}
+
+var MovesStorage = map[uint16][]byte{}
+var MovesLengthStorage = map[uint16]byte{}
+
+func (g *Game) Len() byte {
+	boardIndex := g.Board[PlayerBoardIndex] >> 1
+	if boardIndex < 9 {
+		return MovesLengthStorage[uint16(g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF]
+	}
+
+	var moves byte = 0
+	for _, i := range moveOrder {
+		// Check if the board is open
+		if g.OverallBoard&((0x1<<i)|(0x1<<(i+9))|(0x1<<(i+18))) == 0 {
+			moves += MovesLengthStorage[uint16(g.Board[i]|(g.Board[i]>>9))&0x1FF]
+		}
+	}
+
+	return moves
+}
+
+func (g *Game) MakeMoveRandUntilTerminal() {
+	for !g.IsTerminal() {
+		boardIndex := byte(g.Board[PlayerBoardIndex] >> 1)
+		moveIndex := byte(randSource.Intn(int(g.Len())))
+
+		if boardIndex < 9 {
+			g.MakeMove(boardIndex, MovesStorage[uint16(g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF][moveIndex])
+			continue
+		}
+
+		var moves byte = 0
+		for _, i := range moveOrder {
+			// Check if the board is open
+			if g.OverallBoard&((0x1<<i)|(0x1<<(i+9))|(0x1<<(i+18))) == 0 {
+				currentMoves := MovesLengthStorage[uint16(g.Board[i]|(g.Board[i]>>9))&0x1FF]
+
+				if moves+currentMoves > moveIndex {
+					relaiveMoveIndex := moveIndex - moves
+					g.MakeMove(i, MovesStorage[uint16(g.Board[i]|(g.Board[i]>>9))&0x1FF][relaiveMoveIndex])
+					continue
+				}
+				moves += currentMoves
+			}
+		}
+	}
 }

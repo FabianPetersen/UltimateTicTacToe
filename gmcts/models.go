@@ -1,41 +1,19 @@
 package gmcts
 
-/*
-type gameState struct {
-	*Game2.Game
-	Game2.GameHash
-}
+import (
+	"github.com/FabianPetersen/UltimateTicTacToe/Game"
+	"math"
+)
 
-//MCTS contains functionality for the MCTS algorithm
-type MCTS struct {
-	init  *Game2.Game
-	trees []*Tree
-	mutex *sync.RWMutex
-	seed  int64
-}
+type Node struct {
+	parent   *Node
+	children []*Node
 
-type node struct {
-	state gameState
-	tree  *Tree
+	move  byte
+	board byte
 
-	children          []*node
-	unvisitedChildren int
-	childVisits       []float64
-	actionCount       int
-
-	nodeScore  map[Game2.Player]float64
+	nodeScore  [2]float64
 	nodeVisits int
-
-	heuristicScore map[Game2.Player]float64
-}
-
-//Tree represents a game state tree
-type Tree struct {
-	current          *node
-	gameStates       map[Game2.GameHash]*node
-	explorationConst float64
-	bestActionPolicy BestActionPolicy
-	treePolicy       TreePolicy
 }
 
 type BestActionPolicy byte
@@ -51,4 +29,48 @@ const (
 	UCT2      TreePolicy = 0
 	SMITSIMAX TreePolicy = 1
 )
+
+const (
+	//DefaultExplorationConst is the default exploration constant of UCT2 Formula
+	//Sqrt(2) is a frequent choice for this constant as specified by
+	//https://en.wikipedia.org/wiki/Monte_Carlo_tree_search
+	DefaultExplorationConst = math.Sqrt2
+)
+
+// UCT2 algorithm is described in this paper
+// https://www.csse.uwa.edu.au/cig08/Proceedings/papers/8057.pdf
+func (n *Node) UCT2(i int, p *Game.Player) float64 {
+	exploit := n.children[i].nodeScore[*p] / float64(n.children[i].nodeVisits)
+
+	explore := math.Log(float64(n.nodeVisits)) / float64(n.children[i].nodeVisits)
+	explore = math.Sqrt(explore)
+
+	return exploit + DefaultExplorationConst*explore
+}
+
+// smitsimax Node selection algorithm is described in this paper
+// https://www.codingame.com/playgrounds/36476/smitsimax
+/*
+func (n *Node) smitsimax(i int, p Game.Player) float64 {
+	exploit := 0.3 * n.children[i].nodeScore[p] / float64(n.children[i].nodeVisits)
+	exploit += 0.7 * n.children[i].heuristicScore[p] / float64(n.children[i].nodeVisits)
+
+	explore := math.Log(float64(n.nodeVisits)) / n.childVisits[i]
+	explore = math.Sqrt(explore)
+
+	return exploit + DefaultExplorationConst*explore
+}
 */
+
+func (node *Node) treePolicy(player *Game.Player) *Node {
+	var bestScore float64 = 0
+	var bestNode *Node = nil
+	for i := 0; i < len(node.children); i++ {
+		score := node.UCT2(i, player)
+		if score >= bestScore {
+			bestScore = score
+			bestNode = node.children[i]
+		}
+	}
+	return bestNode
+}

@@ -1,11 +1,7 @@
 package Game
 
 func CheckCompleted(test uint32) bool {
-	if bitCount(test) < 2 {
-		return false
-	}
-
-	if test&0x100 > 0 && ((test&0x111) == 0x111 || (test&0x144) == 0x144 || (test&0x188) == 0x188) || (test&0x122) == 0x122 {
+	if test&0x100 > 0 && ((test&0x111) == 0x111 || (test&0x144) == 0x144 || (test&0x188) == 0x188 || (test&0x122) == 0x122) {
 		return true
 	}
 

@@ -10,7 +10,7 @@ import (
 func TestSpeedMTDF(t *testing.T) {
 	start := time.Now()
 
-	mtd.IterativeDeepening(game, 10)
+	mtd.IterativeDeepeningTime(game, 10, time.Second*10)
 
 	fmt.Println(time.Since(start))
 }

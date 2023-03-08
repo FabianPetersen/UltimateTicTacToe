@@ -1,9 +1,9 @@
 package minimax
 
 import (
-	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"math"
+	"time"
 )
 
 var TranspositionTable = NewStorage()
@@ -48,9 +48,9 @@ func NewNode(state *Game.Game) (*Node, bool) {
 	return oldNode, cacheExists
 }
 
-const inf float64 = 10000
+const inf float64 = 100000
 
-func Search(state *Game.Game, alpha float64, beta float64, depth byte, maxPlayer Game.Player) (float64, byte, byte) {
+func Search(state *Game.Game, alpha float64, beta float64, depth byte, maxPlayer Game.Player, start *time.Time, maxDuration *time.Duration) (float64, byte, byte) {
 	// Restore the values from the last node
 	n, cached := NewNode(state)
 	if cached && n.depth >= depth {
@@ -71,7 +71,7 @@ func Search(state *Game.Game, alpha float64, beta float64, depth byte, maxPlayer
 	var currentBestMove byte = 0
 	var currentBestBoard byte = 0
 	var prevBoard = byte(state.Board[Game.PlayerBoardIndex] >> 1)
-	if depth == 0 || state.IsTerminal() {
+	if depth == 0 || state.IsTerminal() || time.Since(*start) > *maxDuration {
 		return state.HeuristicPlayer(maxPlayer), 0, 0
 
 		// This is a max node
@@ -80,7 +80,7 @@ func Search(state *Game.Game, alpha float64, beta float64, depth byte, maxPlayer
 		a := alpha
 		state.GetMoves(func(boardIndex byte, move byte) bool {
 			state.MakeMove(boardIndex, move)
-			searchValue, _, _ := Search(state, a, beta, depth-1, maxPlayer)
+			searchValue, _, _ := Search(state, a, beta, depth-1, maxPlayer, start, maxDuration)
 			state.UnMakeMove(move, boardIndex, prevBoard)
 
 			if searchValue >= value {
@@ -97,7 +97,7 @@ func Search(state *Game.Game, alpha float64, beta float64, depth byte, maxPlayer
 		b := beta
 		state.GetMoves(func(boardIndex byte, move byte) bool {
 			state.MakeMove(boardIndex, move)
-			searchValue, _, _ := Search(state, alpha, b, depth-1, maxPlayer)
+			searchValue, _, _ := Search(state, alpha, b, depth-1, maxPlayer, start, maxDuration)
 			state.UnMakeMove(move, boardIndex, prevBoard)
 			if searchValue <= value {
 				value = searchValue
@@ -118,13 +118,13 @@ func Search(state *Game.Game, alpha float64, beta float64, depth byte, maxPlayer
 		}
 	}
 
-	/* Traditional transposition table storing of bounds */
-	/* Fail low result implies an upper bound */
+	// Traditional transposition table storing of bounds
+	// Fail low result implies an upper bound
 	if value <= alpha {
 		n.upperBound = value
 		n.flag = UPPER_BOUND
 	}
-	/* Found an exact minimax value – will not occur if called with zero window */
+	// Found an exact minimax value – will not occur if called with zero window
 	if value > alpha && value < beta {
 		n.lowerBound = value
 		n.upperBound = value
@@ -132,7 +132,7 @@ func Search(state *Game.Game, alpha float64, beta float64, depth byte, maxPlayer
 		n.bestBoard = currentBestBoard
 		n.flag = EXACT
 	}
-	/* Fail high result implies a lower bound */
+	// Fail high result implies a lower bound
 	if value >= beta {
 		n.lowerBound = value
 		n.bestMove = currentBestMove
@@ -145,48 +145,4 @@ func Search(state *Game.Game, alpha float64, beta float64, depth byte, maxPlayer
 	}
 
 	return value, n.bestMove, n.bestBoard
-}
-
-type Minimax struct {
-	root  *Node
-	Depth byte
-}
-
-func NewMinimax() *Minimax {
-	return &Minimax{root: &Node{}, Depth: 0}
-}
-
-func (minimax *Minimax) Search(state *Game.Game) (byte, byte) {
-	if minimax.Depth == 0 {
-		minimax.setDepth(state)
-	}
-
-	TranspositionTable.Reset()
-	// Game.HeuristicStorage.Reset()
-	_, bestMove, bestBoard := Search(state, math.Inf(-1), math.Inf(1), minimax.Depth, Game.Player(state.Board[Game.PlayerBoardIndex]&0x1))
-	fmt.Printf("Stored nodes, %d Depth %d \n", len(TranspositionTable.nodeStore), minimax.Depth)
-	return bestMove, bestBoard
-}
-
-func (minimax *Minimax) setDepth(state *Game.Game) {
-	minimax.Depth = GetDepth(state)
-}
-
-func GetDepth(g *Game.Game) byte {
-	movesPlayed := g.MovesMade()
-	if movesPlayed < 4 {
-		return 8
-	} else if movesPlayed < 16 {
-		return 9
-	} else if movesPlayed < 22 {
-		return 10
-	} else if movesPlayed < 32 {
-		return 11
-	} else if movesPlayed < 34 {
-		return 12
-	} else if movesPlayed < 38 {
-		return 14
-	} else {
-		return 15
-	}
 }

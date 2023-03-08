@@ -1,110 +1,130 @@
 package gmcts
 
-/*
 import (
-	"errors"
+	"context"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
-	"sync"
+	"time"
 )
 
+const bestActionPolicy = ROBUST_CHILD
 
-var (
-	//ErrNoTrees notifies the callee that the MCTS wrapper has recieved to trees to analyze
-	ErrNoTrees = errors.New("gmcts: mcts wrapper has collected to trees to analyze")
+// MCTS contains functionality for the MCTS algorithm
+type MCTS struct {
+	game *Game.Game
+	root *Node
+}
 
-	//ErrTerminal notifies the callee that the given state is terminal
-	ErrTerminal = errors.New("gmcts: given game state is a terminal state, therefore, it cannot return an action")
-
-	//ErrNoActions notifies the callee that the given state has <= 0 actions
-	ErrNoActions = errors.New("gmcts: given game state is not terminal, yet the state has <= 0 actions to Search through")
-)
-
-//NewMCTS returns a new MCTS wrapper
+// NewMCTS returns a new MCTS wrapper
 func NewMCTS(initial *Game.Game) *MCTS {
 	return &MCTS{
-		init:  initial,
-		trees: make([]*Tree, 0),
-		mutex: new(sync.RWMutex),
+		game: initial,
+		root: &Node{
+			nodeVisits: 1,
+		},
 	}
 }
 
-//SpawnTree creates a new Search tree. The tree returned uses Sqrt(2) as the
-//exploration constant.
-func (m *MCTS) SpawnTree(policy BestActionPolicy, treePolicy TreePolicy) *Tree {
-	return m.SpawnCustomTree(DefaultExplorationConst, policy, treePolicy)
-}
-
-//SetSeed sets the seed of the next tree to be spawned.
-//This value is initially set to 0, and increments on each
-//spawned tree.
-func (m *MCTS) SetSeed(seed int64) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.seed = seed
-}
-
-//SpawnCustomTree creates a new Search tree with a given exploration constant.
-func (m *MCTS) SpawnCustomTree(explorationConst float64, policy BestActionPolicy, treePolicy TreePolicy) *Tree {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	t := &Tree{
-		gameStates:       make(map[Game.GameHash]*node),
-		explorationConst: explorationConst,
-		bestActionPolicy: policy,
-		treePolicy:       treePolicy,
-	}
-	t.current = initializeNode(gameState{m.init, m.init.Hash()}, t)
-
-	m.seed++
-	return t
-}
-
-//AddTree adds a searched tree to its list of trees to consider
-//when deciding upon an action to take.
-func (m *MCTS) AddTree(t *Tree) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	m.trees = append(m.trees, t)
-}
-
-//BestAction takes all of the searched trees and returns
-//the index of the best action based on the highest win
-//percentage of each action.
-//
-//BestAction returns ErrNoTrees if it has received no trees
-//to Search through, ErrNoActions if the current state
-//it's considering has no legal actions, or ErrTerminal
-//if the current state it's considering is terminal.
-func (m *MCTS) BestAction() (int, error) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	//Error checking
-	if len(m.trees) == 0 {
-		return -1, ErrNoTrees
-	} else if m.init.IsTerminal() {
-		return -1, ErrTerminal
-	} else if m.init.Len() <= 0 {
-		return -1, ErrNoActions
+func (m *MCTS) search() {
+	// Selection
+	node := m.root
+	g := m.game.Copy()
+	var player Game.Player
+	for node.children != nil {
+		// Check children (tree policy)
+		player = Game.Player(g.Board[Game.PlayerBoardIndex] & 0x1)
+		node = node.treePolicy(&player)
+		g.MakeMove(node.board, node.move)
 	}
 
-	//Democracy Section: each tree votes for an action
-	actionScore := make([]int, m.init.Len())
-	for _, t := range m.trees {
-		actionScore[t.bestAction()]++
+	// Expansion
+	if !g.IsTerminal() {
+		i := 0
+		node.children = make([]*Node, g.Len())
+		g.GetMoves(func(board byte, move byte) bool {
+			node.children[i] = &Node{
+				parent:     node,
+				move:       move,
+				board:      board,
+				nodeVisits: 1,
+			}
+			i++
+			return false
+		})
+
+		player = Game.Player(g.Board[Game.PlayerBoardIndex] & 0x1)
+		node = node.treePolicy(&player)
+		g.MakeMove(node.board, node.move)
 	}
 
-	//Democracy Section: the action with the most votes wins
-	var bestAction int
-	var mostVotes int
-	for a, s := range actionScore {
-		if s > mostVotes {
-			bestAction = a
-			mostVotes = s
+	// Simulation
+	g.MakeMoveRandUntilTerminal()
+
+	// Backpropagation
+	winner := g.WinningPlayer()
+	for node.parent != nil {
+		if winner < 2 {
+			node.nodeScore[winner] += 1
+		} else {
+			node.nodeScore[Game.Player1] += 0.5
+			node.nodeScore[Game.Player2] += 0.5
+		}
+		node.nodeVisits += 1
+		node = node.parent
+	}
+}
+
+func (t *MCTS) bestAction() byte {
+	var bestAction byte
+	//Select the child with the highest winrate
+	if bestActionPolicy == MAX_CHILD_SCORE {
+		bestWinRate := -1.0
+		player := Game.Player(t.game.Board[Game.PlayerBoardIndex] & 0x1)
+		for i := byte(0); i < t.game.Len(); i++ {
+			winRate := t.root.children[i].nodeScore[player] / float64(t.root.children[i].nodeVisits)
+			if winRate > bestWinRate {
+				bestAction = i
+				bestWinRate = winRate
+			}
+		}
+	} else if bestActionPolicy == ROBUST_CHILD {
+		mostVisists := -1.0
+		for i := byte(0); i < t.game.Len(); i++ {
+			if float64(t.root.children[i].nodeVisits) >= mostVisists {
+				bestAction = i
+				mostVisists = float64(t.root.children[i].nodeVisits)
+			}
 		}
 	}
-	return bestAction, nil
+
+	return bestAction
 }
-*/
+
+// SearchTime searches the tree for a specified time
+func (t *MCTS) SearchTime(duration time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+	t.SearchContext(ctx)
+}
+
+// SearchContext searches the tree using a given context
+func (t *MCTS) SearchContext(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			t.search()
+		}
+	}
+}
+
+// SearchRounds searches the tree for a specified number of rounds
+//
+// SearchRounds will panic if the Game's ApplyAction
+// method returns an error or if any game state's Hash()
+// method returns a noncomparable value.
+func (t *MCTS) SearchRounds(rounds int) {
+	for i := 0; i < rounds; i++ {
+		t.search()
+	}
+}

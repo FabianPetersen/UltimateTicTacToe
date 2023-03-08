@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"github.com/FabianPetersen/UltimateTicTacToe/bns"
-	"github.com/FabianPetersen/UltimateTicTacToe/minimax"
+	"github.com/FabianPetersen/UltimateTicTacToe/gmcts"
 	"github.com/FabianPetersen/UltimateTicTacToe/mtd"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -111,18 +111,14 @@ func (g *GameEngine) getBotMove() (byte, byte) {
 	var botBoard byte = 254
 	switch activeBotAlgorithm {
 	case MTD_F:
-		botMove, botBoard = mtd.IterativeDeepeningTime(g.game, 100*time.Millisecond)
-
-	case MINIMAX:
-		mini := minimax.NewMinimax()
-		botMove, botBoard = mini.Search(g.game)
+		botMove, botBoard = mtd.IterativeDeepeningTime(g.game, 15, 100*time.Millisecond)
 
 	case MINIMAX_ITERATIVE:
 		//mini := minimax.NewMinimax(g.game)
 		//botMove = mini.SearchIterative()
 
 	case BNS:
-		botMove = bns.IterativeDeepening(g.game, minimax.GetDepth(g.game))
+		botMove = bns.IterativeDeepening(g.game, 10)
 
 		/*
 			case MONTE_CARLO_TREE_SEARCH:
@@ -208,8 +204,8 @@ func (g *GameEngine) DrawSingleGameEngine(screen *ebiten.Image, boardX float64, 
 		ebitenutil.DebugPrintAt(screen, "draw", int(startX+width/4)-int(float64(len("Draw"))*3.25), int(startY+height/4))
 	}
 
-	p1Score := Game.HeuristicBoard(Game.Player1, g.game.Board[boardIndex], false)
-	p2Score := Game.HeuristicBoard(Game.Player2, g.game.Board[boardIndex], false)
+	p1Score := g.game.HeuristicBoard(Game.Player1, g.game.Board[boardIndex], false)
+	p2Score := g.game.HeuristicBoard(Game.Player2, g.game.Board[boardIndex], false)
 	p1ScoreString := fmt.Sprintf("Player 1: %.2f", p1Score)
 	p2ScoreString := fmt.Sprintf("Player 2: %.2f", p2Score)
 	ebitenutil.DebugPrintAt(screen, p1ScoreString, int(startX+2), int(startY+5))
@@ -225,15 +221,16 @@ func (g *GameEngine) Draw(screen *ebiten.Image) {
 		g.DrawSingleGameEngine(screen, boardPos[0], boardPos[1], byte(boardIndex))
 	}
 
-	if Game.CheckCompleted(g.game.OverallBoard & 0x1FF) {
+	winner := g.game.WinningPlayer()
+	if winner == Game.Player1 {
 		text := fmt.Sprintf("Winner %d", 0)
 		ebitenutil.DebugPrintAt(screen, text, windowSizeW/2-int(float64(len(text))*3.25), windowSizeH/2)
 
-	} else if Game.CheckCompleted((g.game.OverallBoard >> 9) & 0x1FF) {
+	} else if winner == Game.Player2 {
 		text := fmt.Sprintf("Winner %d", 1)
 		ebitenutil.DebugPrintAt(screen, text, windowSizeW/2-int(float64(len(text))*3.25), windowSizeH/2)
 
-	} else if ((g.game.OverallBoard>>18)|(g.game.OverallBoard>>9)|g.game.OverallBoard)&0x1FF == 0x1FF {
+	} else if winner == Game.Draw {
 		ebitenutil.DebugPrintAt(screen, "Draw", windowSizeW/2-int(float64(len("Draw"))*3.25), windowSizeH/2)
 	}
 
@@ -246,6 +243,9 @@ func (g *GameEngine) Layout(outsideWidth, outsideHeight int) (screenWidth, scree
 }
 
 func main() {
+	mcts := gmcts.NewMCTS(Game.NewGame())
+	mcts.SearchRounds(1)
+
 	ebiten.SetWindowSize(windowSizeW, windowSizeH)
 	ebiten.SetWindowTitle("Ultimate Tic-Tac-Toe")
 	gameEngine := &GameEngine{
