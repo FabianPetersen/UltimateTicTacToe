@@ -27,7 +27,16 @@ const PlayerBoardIndex = 9
 
 /*	corner -> middle -> side */
 var moveOrder = []byte{0, 4, 2, 6, 8, 1, 3, 5, 7}
+
 var randSource = rand.New(rand.NewSource(time.Now().Unix()))
+
+var x = uint64(time.Now().Unix()) /*  time.Now().Unix() initial seed must be nonzero, don't use a static variable for the state if multithreaded */
+func xorshift64star(n byte) byte {
+	x ^= x >> 12
+	x ^= x << 25
+	x ^= x >> 27
+	return byte((x * 2685821657736338717) % uint64(n))
+}
 
 type Game struct {
 	Board           [boardLength + 1]uint32
@@ -37,26 +46,18 @@ type Game struct {
 
 func (g *Game) GetMoves(executeMove func(byte, byte) bool) {
 	currentBoard := byte(g.Board[PlayerBoardIndex] >> 1)
-	if currentBoard != GlobalBoard {
-		board := (g.Board[currentBoard] | (g.Board[currentBoard] >> 9)) & 0x1FF
-		for _, move := range moveOrder {
-			if board&(0x1<<move) == 0 {
-				if executeMove(currentBoard, move) {
-					return
-				}
+	if currentBoard < 9 {
+		for _, move := range MovesStorage[((g.Board[currentBoard] | (g.Board[currentBoard] >> 9)) & 0x1FF)] {
+			if executeMove(currentBoard, move) {
+				return
 			}
 		}
 	} else {
-		for _, i := range moveOrder {
-			// Check if the board is open
-			if g.OverallBoard&((0x1<<i)|(0x1<<(i+9))|(0x1<<(i+18))) == 0 {
-				board := (g.Board[i] | (g.Board[i] >> 9)) & 0x1FF
-				for _, move := range moveOrder {
-					if board&(0x1<<move) == 0 {
-						if executeMove(i, move) {
-							return
-						}
-					}
+		jointOverallBoard = (g.OverallBoard>>9 | g.OverallBoard | g.OverallBoard>>18) & 0x1FF
+		for _, i := range MovesStorage[jointOverallBoard] {
+			for _, move := range MovesStorage[((g.Board[i] | (g.Board[i] >> 9)) & 0x1FF)] {
+				if executeMove(i, move) {
+					return
 				}
 			}
 		}
@@ -79,7 +80,7 @@ func (g *Game) Compare(c *Game) bool {
 
 // IsTerminal returns true if this game state is a terminal state
 func (g *Game) IsTerminal() bool {
-	return CheckCompleted(g.OverallBoard&0x1FF) || CheckCompleted((g.OverallBoard>>9)&0x1FF) || ((g.OverallBoard>>18)|(g.OverallBoard>>9)|g.OverallBoard)&0x1FF == 0x1FF
+	return BoardCompletedStorage[g.OverallBoard&0x1FF] || BoardCompletedStorage[(g.OverallBoard>>9)&0x1FF] || ((g.OverallBoard>>18)|(g.OverallBoard>>9)|g.OverallBoard)&0x1FF == 0x1FF
 }
 
 func (g *Game) WinningPlayer() Player {
@@ -149,7 +150,7 @@ func (g *Game) Rotate(rotateBy uint32) {
 
 	// Change current board
 	currentBoard := byte(g.Board[PlayerBoardIndex] >> 1)
-	if currentBoard != 8 && currentBoard != GlobalBoard {
+	if currentBoard != 8 && currentBoard < 9 {
 		g.Board[PlayerBoardIndex] = (((uint32(currentBoard) + rotateBy) % 8) << 1) | (g.Board[PlayerBoardIndex] & 0x1)
 	}
 }
@@ -179,21 +180,10 @@ func (g *Game) UnMakeMove(lastPos byte, lastBoard byte, prevBoard byte) {
 }
 
 func (g *Game) MakeMove(boardIndex byte, pos byte) {
-	if Player(g.Board[PlayerBoardIndex]&0x1) == Player1 {
-		g.Board[boardIndex] |= 1 << pos
-
-		// Player 1 - WIN
-		if CheckCompleted(g.Board[boardIndex] & 0x1FF) {
-			g.OverallBoard |= 1 << boardIndex
-		}
-
-	} else {
-		g.Board[boardIndex] |= 1 << (pos + 9)
-
-		// Player 2 - WIN
-		if CheckCompleted((g.Board[boardIndex] >> 9) & 0x1FF) {
-			g.OverallBoard |= 1 << (boardIndex + 9)
-		}
+	p := byte(g.Board[PlayerBoardIndex] & 0x1)
+	g.Board[boardIndex] |= 1 << (pos + 9*p)
+	if BoardCompletedStorage[(g.Board[boardIndex]>>(9*p))&0x1FF] {
+		g.OverallBoard |= 1 << (boardIndex + (9 * p))
 	}
 
 	// Draw
@@ -202,10 +192,11 @@ func (g *Game) MakeMove(boardIndex byte, pos byte) {
 	}
 
 	// Only switch board is a space is available
-	if g.IsBoardFinished(pos) {
-		g.Board[PlayerBoardIndex] = uint32(GlobalBoard)<<1 | ((g.Board[PlayerBoardIndex] & 0x1) ^ 0x1)
-	} else {
-		g.Board[PlayerBoardIndex] = uint32(pos)<<1 | ((g.Board[PlayerBoardIndex] & 0x1) ^ 0x1)
+	g.Board[PlayerBoardIndex] = uint32(pos)<<1 | ((g.Board[PlayerBoardIndex] & 0x1) ^ 0x1)
+
+	// If board is finished
+	if g.OverallBoard&(0x1<<pos|0x1<<(pos+9)|0x1<<(pos+18)) != 0 {
+		g.Board[PlayerBoardIndex] |= 0x100
 	}
 }
 
@@ -215,53 +206,62 @@ func (g *Game) ValidMove(boardIndex byte, pos byte) bool {
 }
 
 func (g *Game) IsBoardFinished(pos byte) bool {
-	return g.OverallBoard&(0x1<<pos|0x1<<(pos+9)|0x1<<(pos+18)) > 0
-	//return !((g.OverallBoard>>pos)&0x1 == 0 && (g.OverallBoard>>(pos+9))&0x1 == 0 && (g.OverallBoard>>(pos+18))&0x1 == 0)
+	return g.OverallBoard&(0x1<<pos|0x1<<(pos+9)|0x1<<(pos+18)) != 0
 }
 
-var MovesStorage = map[uint16][]byte{}
-var MovesLengthStorage = map[uint16]byte{}
+var MovesStorage = [512][]byte{}
+var MovesLengthStorage = [512]byte{}
+
+var boardIndex byte
+var moveIndex byte
+var jointOverallBoard uint32
+var moves byte
+var currentMoves byte
+var board uint32
+var relativeMoveIndex byte
 
 func (g *Game) Len() byte {
-	boardIndex := g.Board[PlayerBoardIndex] >> 1
+	boardIndex = byte(g.Board[PlayerBoardIndex] >> 1)
 	if boardIndex < 9 {
-		return MovesLengthStorage[uint16(g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF]
+		return MovesLengthStorage[(g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF]
 	}
 
-	var moves byte = 0
-	for _, i := range moveOrder {
+	moves = 0
+	jointOverallBoard = (g.OverallBoard>>9 | g.OverallBoard | g.OverallBoard>>18) & 0x1FF
+	for _, i := range MovesStorage[jointOverallBoard] {
 		// Check if the board is open
-		if g.OverallBoard&((0x1<<i)|(0x1<<(i+9))|(0x1<<(i+18))) == 0 {
-			moves += MovesLengthStorage[uint16(g.Board[i]|(g.Board[i]>>9))&0x1FF]
-		}
+		moves += MovesLengthStorage[(g.Board[i]|(g.Board[i]>>9))&0x1FF]
 	}
 
 	return moves
 }
 
 func (g *Game) MakeMoveRandUntilTerminal() {
-	for !g.IsTerminal() {
-		boardIndex := byte(g.Board[PlayerBoardIndex] >> 1)
-		moveIndex := byte(randSource.Intn(int(g.Len())))
+	//for !g.IsTerminal() {
+	jointOverallBoard = (g.OverallBoard>>9 | g.OverallBoard | g.OverallBoard>>18) & 0x1FF
+	for !(BoardCompletedStorage[g.OverallBoard&0x1FF] || BoardCompletedStorage[(g.OverallBoard>>9)&0x1FF] || jointOverallBoard == 0x1FF) {
+		boardIndex = byte(g.Board[PlayerBoardIndex] >> 1)
+		// moveIndex = byte(randSource.Intn(int(g.Len())))
+		moveIndex = xorshift64star(g.Len())
 
 		if boardIndex < 9 {
-			g.MakeMove(boardIndex, MovesStorage[uint16(g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF][moveIndex])
+			g.MakeMove(boardIndex, MovesStorage[(g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF][moveIndex])
+			jointOverallBoard = (g.OverallBoard>>9 | g.OverallBoard | g.OverallBoard>>18) & 0x1FF
 			continue
 		}
 
-		var moves byte = 0
-		for _, i := range moveOrder {
-			// Check if the board is open
-			if g.OverallBoard&((0x1<<i)|(0x1<<(i+9))|(0x1<<(i+18))) == 0 {
-				currentMoves := MovesLengthStorage[uint16(g.Board[i]|(g.Board[i]>>9))&0x1FF]
+		moves = 0
+		for _, i := range MovesStorage[jointOverallBoard] {
+			board = (g.Board[i] | (g.Board[i] >> 9)) & 0x1FF
+			currentMoves = MovesLengthStorage[board]
 
-				if moves+currentMoves > moveIndex {
-					relaiveMoveIndex := moveIndex - moves
-					g.MakeMove(i, MovesStorage[uint16(g.Board[i]|(g.Board[i]>>9))&0x1FF][relaiveMoveIndex])
-					continue
-				}
-				moves += currentMoves
+			if moves+currentMoves > moveIndex {
+				relativeMoveIndex = moveIndex - moves
+				g.MakeMove(i, MovesStorage[board][relativeMoveIndex])
+				jointOverallBoard = (g.OverallBoard>>9 | g.OverallBoard | g.OverallBoard>>18) & 0x1FF
+				continue
 			}
+			moves += currentMoves
 		}
 	}
 }

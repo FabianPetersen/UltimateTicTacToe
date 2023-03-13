@@ -1,19 +1,22 @@
 package gmcts
 
 import (
-	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"math"
+	"unsafe"
 )
 
 type Node struct {
-	parent   *Node
-	children []*Node
+	parent        *Node
+	children      []*Node
+	childrenCount byte
+	maxChildren   byte
 
 	move  byte
 	board byte
 
-	nodeScore  [2]float64
-	nodeVisits int
+	nodeScore   uint16
+	nodeVisits  uint16
+	nodeExploit float32
 }
 
 type BestActionPolicy byte
@@ -23,29 +26,40 @@ const (
 	ROBUST_CHILD    BestActionPolicy = 1
 )
 
-type TreePolicy byte
-
-const (
-	UCT2      TreePolicy = 0
-	SMITSIMAX TreePolicy = 1
-)
-
 const (
 	//DefaultExplorationConst is the default exploration constant of UCT2 Formula
 	//Sqrt(2) is a frequent choice for this constant as specified by
 	//https://en.wikipedia.org/wiki/Monte_Carlo_tree_search
-	DefaultExplorationConst = math.Sqrt2
+	DefaultExplorationConst = float32(math.Sqrt2) - 1
 )
+
+const magic32 = 0x5F375A86
+const th = 1.5
+
+func FastSqrt32(n float32) float32 {
+	b := *(*uint64)(unsafe.Pointer(&n))
+	b = magic32 - (b >> 1)
+	y := *(*float32)(unsafe.Pointer(&b))
+	y *= th - (n * 0.5 * y * y)
+	return 1 / y
+}
+
+func ln(x float32) float32 {
+	var bx = *(*uint32)(unsafe.Pointer(&x))
+	var ex = bx >> 23
+	var t = float32(ex) - 127
+	bx = 1065353216 | (bx & 8388607)
+	x = *(*float32)(unsafe.Pointer(&bx))
+	return -1.49278 + (2.11263+(-0.729104+0.10969*x)*x)*x + 0.6931471806*t
+}
 
 // UCT2 algorithm is described in this paper
 // https://www.csse.uwa.edu.au/cig08/Proceedings/papers/8057.pdf
-func (n *Node) UCT2(i int, p *Game.Player) float64 {
-	exploit := n.children[i].nodeScore[*p] / float64(n.children[i].nodeVisits)
+func (n *Node) UCT2(i byte) float32 {
+	explore := ln(float32(n.nodeVisits)) / float32(n.children[i].nodeVisits) // math.Log(float64(n.nodeVisits)) / float64(n.children[i].nodeVisits)
+	explore = float32(math.Sqrt(float64(explore)))                           // FastSqrt32(explore)                                            // float32(math.Sqrt(float64(explore)))                           // 1 / FastInvSqrt64(explore) // math.Sqrt(explore) // 1 / FastInvSqrt64(explore) //
 
-	explore := math.Log(float64(n.nodeVisits)) / float64(n.children[i].nodeVisits)
-	explore = math.Sqrt(explore)
-
-	return exploit + DefaultExplorationConst*explore
+	return n.nodeExploit + DefaultExplorationConst*explore
 }
 
 // smitsimax Node selection algorithm is described in this paper
@@ -62,11 +76,11 @@ func (n *Node) smitsimax(i int, p Game.Player) float64 {
 }
 */
 
-func (node *Node) treePolicy(player *Game.Player) *Node {
-	var bestScore float64 = 0
-	var bestNode *Node = nil
-	for i := 0; i < len(node.children); i++ {
-		score := node.UCT2(i, player)
+func (node *Node) treePolicy() *Node {
+	var bestScore float32 = 0
+	var bestNode = node.children[0]
+	for i := byte(0); i < node.childrenCount; i++ {
+		score := node.UCT2(i)
 		if score >= bestScore {
 			bestScore = score
 			bestNode = node.children[i]

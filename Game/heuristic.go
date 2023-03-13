@@ -236,12 +236,16 @@ func (g *Game) PopulateBoards() {
 										}
 
 										MovesStorage[jointBoard] = []byte{}
+										randSource.Shuffle(len(moveOrder), func(i, j int) {
+											moveOrder[i], moveOrder[j] = moveOrder[j], moveOrder[i]
+										})
 										for _, move := range moveOrder {
 											if jointBoard&(0x1<<move) == 0 {
 												MovesStorage[jointBoard] = append(MovesStorage[jointBoard], move)
 											}
 										}
 										MovesLengthStorage[jointBoard] = byte(len(MovesStorage[jointBoard]))
+										BoardCompletedStorage[jointBoard] = CheckCompletedHelper(uint32(jointBoard))
 									}
 								}
 							}

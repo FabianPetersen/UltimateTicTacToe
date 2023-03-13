@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
 	"github.com/FabianPetersen/UltimateTicTacToe/bns"
-	"github.com/FabianPetersen/UltimateTicTacToe/gmcts"
 	"github.com/FabianPetersen/UltimateTicTacToe/mtd"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -243,9 +242,6 @@ func (g *GameEngine) Layout(outsideWidth, outsideHeight int) (screenWidth, scree
 }
 
 func main() {
-	mcts := gmcts.NewMCTS(Game.NewGame())
-	mcts.SearchRounds(1)
-
 	ebiten.SetWindowSize(windowSizeW, windowSizeH)
 	ebiten.SetWindowTitle("Ultimate Tic-Tac-Toe")
 	gameEngine := &GameEngine{

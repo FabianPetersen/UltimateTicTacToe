@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"math"
-	"math/rand"
 	"os"
 	"time"
 )
@@ -44,15 +43,6 @@ func translateOppMove(x byte, y byte) (byte, byte) {
 	return 0, 0
 }
 
-const boardCornerRating = 1.4
-const boardSideRating = 1
-const boardMiddleRating = 1.75
-const posCornerRating = 0.2
-const posSideRating = 0.17
-const posMiddleRating = 0.22
-
-var boardRating = []float64{boardCornerRating, boardSideRating, boardCornerRating, boardSideRating, boardCornerRating, boardSideRating, boardCornerRating, boardSideRating, boardMiddleRating}
-var posRating = []float64{posCornerRating, posSideRating, posCornerRating, posSideRating, posCornerRating, posSideRating, posCornerRating, posSideRating, posMiddleRating}
 var BoardHeuristicCacheP1 = map[uint32]float64{}
 var BoardHeuristicCacheP2 = map[uint32]float64{}
 
@@ -238,49 +228,83 @@ func (g *Game) MovesMade() uint32 {
 	return movesPlayed
 }
 
+func popBoardHelper(b uint32, pos int, player int) uint32 {
+	if player == 0 {
+		b |= 0x1 << pos
+	} else if player == 1 {
+		b |= 0x1 << (pos + 9)
+	}
+	return b
+}
+
 func (g *Game) PopulateBoards() {
-	for i := 0; i < 19683; i++ {
-		c := i
-		var board uint32 = 0
-		for ii := 0; ii < 9; ii++ {
-			switch c % 3 {
-			case 0:
-			case 1:
-				board |= 0x1 << ii
-			case 2:
-				board |= 0x1 << (ii + 9)
+	var board uint32 = 0
+	for i0 := 0; i0 < 3; i0++ {
+		for i1 := 0; i1 < 3; i1++ {
+			for i2 := 0; i2 < 3; i2++ {
+				for i3 := 0; i3 < 3; i3++ {
+					for i4 := 0; i4 < 3; i4++ {
+						for i5 := 0; i5 < 3; i5++ {
+							for i6 := 0; i6 < 3; i6++ {
+								for i7 := 0; i7 < 3; i7++ {
+									for i8 := 0; i8 < 3; i8++ {
+										board = 0
+										board = popBoardHelper(board, 0, i0)
+										board = popBoardHelper(board, 1, i1)
+										board = popBoardHelper(board, 2, i2)
+										board = popBoardHelper(board, 3, i3)
+										board = popBoardHelper(board, 4, i4)
+										board = popBoardHelper(board, 5, i5)
+										board = popBoardHelper(board, 6, i6)
+										board = popBoardHelper(board, 7, i7)
+										board = popBoardHelper(board, 8, i8)
+
+										// Check if board is valid
+										isValid := false
+										xBoard, oBoard, jointBoard := board&0x1FF, (board>>9)&0x1FF, uint16((board&0x1FF)|((board>>9)&0x1FF))
+
+										// Board can be valid only if either
+										xWin, oWin := CheckCompleted(xBoard), CheckCompleted(oBoard)
+										if xWin && !oWin {
+											isValid = true
+										} else if !xWin && oWin {
+											isValid = true
+										} else if !xWin && !oWin {
+											isValid = true
+										}
+
+										if isValid {
+											BoardHeuristicCacheP1[board] = g.HeuristicBoard(Player1, board, false)
+											BoardHeuristicCacheP2[board] = g.HeuristicBoard(Player2, board, false)
+										}
+
+										MovesStorage[jointBoard] = []byte{}
+										for _, move := range moveOrder {
+											if jointBoard&(0x1<<move) == 0 {
+												MovesStorage[jointBoard] = append(MovesStorage[jointBoard], move)
+											}
+										}
+										MovesLengthStorage[jointBoard] = byte(len(MovesStorage[jointBoard]))
+										BoardCompletedStorage[jointBoard] = CheckCompletedHelper(uint32(jointBoard))
+									}
+								}
+							}
+						}
+					}
+				}
 			}
-			c /= 3
-		}
-
-		isValid := false
-
-		// Check if board is valid
-		xBoard, oBoard, _ := board&0x1FF, (board>>9)&0x1FF, (board&0x1FF)|((board>>9)&0x1FF)
-
-		// Board can be valid only if either
-		xWin, oWin := CheckCompleted(xBoard), CheckCompleted(oBoard)
-		if xWin && !oWin {
-			isValid = true
-		} else if !xWin && oWin {
-			isValid = true
-		} else if !xWin && !oWin {
-			isValid = true
-		}
-
-		if isValid {
-			BoardHeuristicCacheP1[board] = g.HeuristicBoard(Player1, board, false)
-			BoardHeuristicCacheP2[board] = g.HeuristicBoard(Player2, board, false)
 		}
 	}
 }
 
-func CheckCompleted(test uint32) bool {
-	if bitCount(test) < 2 {
-		return false
-	}
+var BoardCompletedStorage = [512]bool{}
 
-	if test&0x100 > 0 && ((test&0x111) == 0x111 || (test&0x144) == 0x144 || (test&0x188) == 0x188) || (test&0x122) == 0x122 {
+func CheckCompleted(test uint32) bool {
+	return BoardCompletedStorage[test]
+}
+
+func CheckCompletedHelper(test uint32) bool {
+	if test&0x100 > 0 && ((test&0x111) == 0x111 || (test&0x144) == 0x144 || (test&0x188) == 0x188 || (test&0x122) == 0x122) {
 		return true
 	}
 
@@ -323,14 +347,21 @@ type GameHash *[10]uint32
 
 const Player1 Player = 0
 const Player2 Player = 1
+const Draw Player = 2
 const boardLength = 9
 const GlobalBoard byte = 0xF0
 const PlayerBoardIndex = 9
 
-var randSource = rand.New(rand.NewSource(time.Now().Unix()))
-
 /*	corner -> middle -> side */
 var moveOrder = []byte{0, 4, 2, 6, 8, 1, 3, 5, 7}
+
+var x = uint64(time.Now().Unix()) /* initial seed must be nonzero, don't use a static variable for the state if multithreaded */
+func xorshift64star(n byte) byte {
+	x ^= x >> 12
+	x ^= x << 25
+	x ^= x >> 27
+	return byte((x * 2685821657736338717) % uint64(n))
+}
 
 type Game struct {
 	Board           [boardLength + 1]uint32
@@ -341,24 +372,18 @@ type Game struct {
 func (g *Game) GetMoves(executeMove func(byte, byte) bool) {
 	currentBoard := byte(g.Board[PlayerBoardIndex] >> 1)
 	if currentBoard != GlobalBoard {
-		board := (g.Board[currentBoard] | (g.Board[currentBoard] >> 9)) & 0x1FF
-		for _, move := range moveOrder {
-			if board&(0x1<<move) == 0 {
-				if executeMove(currentBoard, move) {
-					return
-				}
+		for _, move := range MovesStorage[((g.Board[currentBoard] | (g.Board[currentBoard] >> 9)) & 0x1FF)] {
+			if executeMove(currentBoard, move) {
+				return
 			}
 		}
 	} else {
 		for _, i := range moveOrder {
 			// Check if the board is open
 			if g.OverallBoard&((0x1<<i)|(0x1<<(i+9))|(0x1<<(i+18))) == 0 {
-				board := (g.Board[i] | (g.Board[i] >> 9)) & 0x1FF
-				for _, move := range moveOrder {
-					if board&(0x1<<move) == 0 {
-						if executeMove(i, move) {
-							return
-						}
+				for _, move := range MovesStorage[((g.Board[i] | (g.Board[i] >> 9)) & 0x1FF)] {
+					if executeMove(i, move) {
+						return
 					}
 				}
 			}
@@ -383,6 +408,25 @@ func (g *Game) Compare(c *Game) bool {
 // IsTerminal returns true if this game state is a terminal state
 func (g *Game) IsTerminal() bool {
 	return CheckCompleted(g.OverallBoard&0x1FF) || CheckCompleted((g.OverallBoard>>9)&0x1FF) || ((g.OverallBoard>>18)|(g.OverallBoard>>9)|g.OverallBoard)&0x1FF == 0x1FF
+}
+
+func (g *Game) WinningPlayer() Player {
+	if CheckCompleted(g.OverallBoard & 0x1FF) {
+		return Player1
+
+	} else if CheckCompleted((g.OverallBoard >> 9) & 0x1FF) {
+		return Player2
+
+	} else if ((g.OverallBoard>>18)|(g.OverallBoard>>9)|g.OverallBoard)&0x1FF == 0x1FF {
+		p1 := bitCount(g.OverallBoard & 0x1FF)
+		p2 := bitCount((g.OverallBoard >> 9) & 0x1FF)
+		if p1 > p2 {
+			return Player1
+		} else if p2 > p1 {
+			return Player2
+		}
+	}
+	return Draw
 }
 
 func NewGame() *Game {
@@ -499,7 +543,55 @@ func (g *Game) ValidMove(boardIndex byte, pos byte) bool {
 }
 
 func (g *Game) IsBoardFinished(pos byte) bool {
-	return !((g.OverallBoard>>pos)&0x1 == 0 && (g.OverallBoard>>(pos+9))&0x1 == 0 && (g.OverallBoard>>(pos+18))&0x1 == 0)
+	return g.OverallBoard&(0x1<<pos|0x1<<(pos+9)|0x1<<(pos+18)) > 0
+}
+
+var MovesStorage = [512][]byte{}
+var MovesLengthStorage = [512]byte{}
+
+func (g *Game) Len() byte {
+	boardIndex := g.Board[PlayerBoardIndex] >> 1
+	if boardIndex < 9 {
+		return MovesLengthStorage[(g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF]
+	}
+
+	var moves byte = 0
+	for _, i := range moveOrder {
+		// Check if the board is open
+		if g.OverallBoard&((0x1<<i)|(0x1<<(i+9))|(0x1<<(i+18))) == 0 {
+			moves += MovesLengthStorage[(g.Board[i]|(g.Board[i]>>9))&0x1FF]
+		}
+	}
+
+	return moves
+}
+
+func (g *Game) MakeMoveRandUntilTerminal() {
+	for !g.IsTerminal() {
+		boardIndex := byte(g.Board[PlayerBoardIndex] >> 1)
+		// moveIndex := byte(randSource.Intn(int(g.Len())))
+		moveIndex := xorshift64star(g.Len())
+
+		if boardIndex < 9 {
+			g.MakeMove(boardIndex, MovesStorage[(g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF][moveIndex])
+			continue
+		}
+
+		var moves byte = 0
+		for _, i := range moveOrder {
+			// Check if the board is open
+			if g.OverallBoard&((0x1<<i)|(0x1<<(i+9))|(0x1<<(i+18))) == 0 {
+				currentMoves := MovesLengthStorage[(g.Board[i]|(g.Board[i]>>9))&0x1FF]
+
+				if moves+currentMoves > moveIndex {
+					relaiveMoveIndex := moveIndex - moves
+					g.MakeMove(i, MovesStorage[(g.Board[i]|(g.Board[i]>>9))&0x1FF][relaiveMoveIndex])
+					continue
+				}
+				moves += currentMoves
+			}
+		}
+	}
 }
 
 type Storage struct {

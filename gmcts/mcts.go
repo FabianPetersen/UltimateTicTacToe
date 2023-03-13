@@ -1,120 +1,148 @@
 package gmcts
 
 import (
-	"context"
+	"fmt"
 	"github.com/FabianPetersen/UltimateTicTacToe/Game"
+	"os"
 	"time"
 )
 
 const bestActionPolicy = ROBUST_CHILD
 
+var nodePool = [700000]Node{}
+var NodePoolIndex = 1
+
 // MCTS contains functionality for the MCTS algorithm
 type MCTS struct {
-	game *Game.Game
-	root *Node
+	game     *Game.Game
+	gameCopy *Game.Game
+	root     *Node
 }
+
+var ggCopy Game.Game
 
 // NewMCTS returns a new MCTS wrapper
 func NewMCTS(initial *Game.Game) *MCTS {
+	NodePoolIndex = 1
+
+	nodePool[0].parent = nil
+	nodePool[0].nodeVisits = 1
+	nodePool[0].nodeScore = 0
+	nodePool[0].childrenCount = 0
 	return &MCTS{
-		game: initial,
-		root: &Node{
-			nodeVisits: 1,
-		},
+		game:     initial,
+		gameCopy: &ggCopy,
+		root:     &nodePool[0],
 	}
 }
 
+var player Game.Player
+var winningPlayer Game.Player
+var node *Node = nil
+var availableMoves byte = 0
+
 func (m *MCTS) search() {
 	// Selection
-	node := m.root
-	g := m.game.Copy()
-	var player Game.Player
-	for node.children != nil {
+	node = m.root
+	m.gameCopy.OverallBoard = m.game.OverallBoard
+	player = Game.Player(m.gameCopy.Board[Game.PlayerBoardIndex] & 0x1)
+	for i := 0; i < 10; i++ {
+		m.gameCopy.Board[i] = m.game.Board[i]
+	}
+
+	for node.childrenCount > 0 {
 		// Check children (tree policy)
-		player = Game.Player(g.Board[Game.PlayerBoardIndex] & 0x1)
-		node = node.treePolicy(&player)
-		g.MakeMove(node.board, node.move)
+		node = node.treePolicy()
+		m.gameCopy.MakeMove(node.board, node.move)
 	}
 
 	// Expansion
-	if !g.IsTerminal() {
-		i := 0
-		node.children = make([]*Node, g.Len())
-		g.GetMoves(func(board byte, move byte) bool {
-			node.children[i] = &Node{
-				parent:     node,
-				move:       move,
-				board:      board,
-				nodeVisits: 1,
-			}
-			i++
+	if !m.gameCopy.IsTerminal() {
+		// Fill out the slice to make room for new items
+		availableMoves = m.gameCopy.Len()
+		if node.maxChildren < availableMoves {
+			node.children = append(node.children, make([]*Node, availableMoves-node.maxChildren)...)
+			node.maxChildren = availableMoves
+		}
+
+		// Iterate over all children
+		node.childrenCount = 0
+		m.gameCopy.GetMoves(func(board byte, move byte) bool {
+			NodePoolIndex++
+			node.children[node.childrenCount] = &nodePool[NodePoolIndex]
+			node.children[node.childrenCount].parent = node
+			node.children[node.childrenCount].move = move
+			node.children[node.childrenCount].board = board
+			node.children[node.childrenCount].nodeVisits = 1
+			node.children[node.childrenCount].nodeScore = 0
+			node.children[node.childrenCount].childrenCount = 0
+			node.childrenCount++
 			return false
 		})
 
-		player = Game.Player(g.Board[Game.PlayerBoardIndex] & 0x1)
-		node = node.treePolicy(&player)
-		g.MakeMove(node.board, node.move)
+		node = node.treePolicy()
+		m.gameCopy.MakeMove(node.board, node.move)
 	}
 
 	// Simulation
-	g.MakeMoveRandUntilTerminal()
+	m.gameCopy.MakeMoveRandUntilTerminal()
 
 	// Backpropagation
-	winner := g.WinningPlayer()
+	player = m.gameCopy.WinningPlayer()
 	for node.parent != nil {
-		if winner < 2 {
-			node.nodeScore[winner] += 1
-		} else {
-			node.nodeScore[Game.Player1] += 0.5
-			node.nodeScore[Game.Player2] += 0.5
+		if player == winningPlayer {
+			node.nodeScore += 2
+		} else if winningPlayer == 2 {
+			node.nodeScore += 1
 		}
 		node.nodeVisits += 1
+		node.nodeExploit = float32(node.nodeScore>>1) / float32(node.nodeVisits)
 		node = node.parent
 	}
 }
 
-func (t *MCTS) bestAction() byte {
+func (t *MCTS) BestAction() (byte, byte) {
 	var bestAction byte
+	var bestBoard byte
 	//Select the child with the highest winrate
 	if bestActionPolicy == MAX_CHILD_SCORE {
-		bestWinRate := -1.0
-		player := Game.Player(t.game.Board[Game.PlayerBoardIndex] & 0x1)
+		var bestWinRate float32 = 0
+		player = Game.Player(t.game.Board[Game.PlayerBoardIndex] & 0x1)
 		for i := byte(0); i < t.game.Len(); i++ {
-			winRate := t.root.children[i].nodeScore[player] / float64(t.root.children[i].nodeVisits)
-			if winRate > bestWinRate {
-				bestAction = i
+			winRate := float32(t.root.children[i].nodeScore>>1) / float32(t.root.children[i].nodeVisits)
+			if winRate >= bestWinRate {
+				bestAction = t.root.children[i].move
+				bestBoard = t.root.children[i].board
 				bestWinRate = winRate
 			}
 		}
 	} else if bestActionPolicy == ROBUST_CHILD {
-		mostVisists := -1.0
+		var mostVisists uint16 = 1
 		for i := byte(0); i < t.game.Len(); i++ {
-			if float64(t.root.children[i].nodeVisits) >= mostVisists {
-				bestAction = i
-				mostVisists = float64(t.root.children[i].nodeVisits)
+			if t.root.children[i].nodeVisits >= mostVisists {
+				bestAction = t.root.children[i].move
+				bestBoard = t.root.children[i].board
+				mostVisists = t.root.children[i].nodeVisits
 			}
 		}
 	}
 
-	return bestAction
+	return bestAction, bestBoard
 }
 
 // SearchTime searches the tree for a specified time
 func (t *MCTS) SearchTime(duration time.Duration) {
-	ctx, cancel := context.WithTimeout(context.Background(), duration)
-	defer cancel()
-	t.SearchContext(ctx)
-}
-
-// SearchContext searches the tree using a given context
-func (t *MCTS) SearchContext(ctx context.Context) {
+	var i int
+	end := time.Now().Add(duration)
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			t.search()
+		if i&0x3F == 0 { // Check in every 128th iteration
+			if time.Now().After(end) {
+				fmt.Fprintf(os.Stderr, "Rounds %d\n", i)
+				break
+			}
 		}
+		t.search()
+		i++
 	}
 }
 
