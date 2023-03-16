@@ -80,7 +80,8 @@ func (m *MCTS) search() {
 			return false
 		})
 
-		node = node.treePolicy()
+		// node = node.children[Game.RandSource.Intn(int(node.childrenCount))]
+		node = node.children[Game.Xorshift64star(node.childrenCount)]
 		m.gameCopy.MakeMove(node.board, node.move)
 	}
 

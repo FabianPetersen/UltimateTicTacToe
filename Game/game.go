@@ -28,10 +28,10 @@ const PlayerBoardIndex = 9
 /*	corner -> middle -> side */
 var moveOrder = []byte{0, 4, 2, 6, 8, 1, 3, 5, 7}
 
-var randSource = rand.New(rand.NewSource(time.Now().Unix()))
+var RandSource = rand.New(rand.NewSource(time.Now().Unix()))
 
 var x = uint64(time.Now().Unix()) /*  time.Now().Unix() initial seed must be nonzero, don't use a static variable for the state if multithreaded */
-func xorshift64star(n byte) byte {
+func Xorshift64star(n byte) byte {
 	x ^= x >> 12
 	x ^= x << 25
 	x ^= x >> 27
@@ -241,8 +241,8 @@ func (g *Game) MakeMoveRandUntilTerminal() {
 	jointOverallBoard = (g.OverallBoard>>9 | g.OverallBoard | g.OverallBoard>>18) & 0x1FF
 	for !(BoardCompletedStorage[g.OverallBoard&0x1FF] || BoardCompletedStorage[(g.OverallBoard>>9)&0x1FF] || jointOverallBoard == 0x1FF) {
 		boardIndex = byte(g.Board[PlayerBoardIndex] >> 1)
-		// moveIndex = byte(randSource.Intn(int(g.Len())))
-		moveIndex = xorshift64star(g.Len())
+		// moveIndex = byte(RandSource.Intn(int(g.Len())))
+		moveIndex = Xorshift64star(g.Len())
 
 		if boardIndex < 9 {
 			g.MakeMove(boardIndex, MovesStorage[(g.Board[boardIndex]|(g.Board[boardIndex]>>9))&0x1FF][moveIndex])

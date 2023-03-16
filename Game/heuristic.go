@@ -236,7 +236,7 @@ func (g *Game) PopulateBoards() {
 										}
 
 										MovesStorage[jointBoard] = []byte{}
-										randSource.Shuffle(len(moveOrder), func(i, j int) {
+										RandSource.Shuffle(len(moveOrder), func(i, j int) {
 											moveOrder[i], moveOrder[j] = moveOrder[j], moveOrder[i]
 										})
 										for _, move := range moveOrder {
